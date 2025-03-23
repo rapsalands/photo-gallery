@@ -25,7 +25,7 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
    - Click on HACS in the sidebar
    - Click on the three dots in the top right corner
    - Select "Custom repositories"
-   - Add the repository URL: `https://github.com/yourusername/ha-gallery`
+   - Add the repository URL: `https://github.com/rapsalands/photo-gallery`
    - Select "Integration" as the category
 3. Click on "Install"
 4. Restart Home Assistant
@@ -50,13 +50,76 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
 
 ## Usage
 
-Add the gallery card to any dashboard:
+### Dashboard Configuration
 
+You can add the gallery card to any dashboard using either the UI or YAML configuration.
+
+#### Using the UI
 1. Edit your dashboard
 2. Click the "+" button to add a new card
 3. Search for "Home Assistant Gallery"
 4. Add the card
 5. (Optional) Adjust the card size in the dashboard
+
+#### Using YAML
+
+Basic configuration:
+```yaml
+type: custom:ha-gallery-card
+```
+
+Full configuration with all options:
+```yaml
+type: custom:ha-gallery-card
+title: My Photo Gallery
+aspect_ratio: '16:9'
+media_path: /media/photos  # Must match the path configured in integration
+transition_interval: 5
+shuffle: true
+fit_mode: contain  # Options: contain, cover, stretch
+default_volume: 50
+```
+
+### Example Dashboard Layout
+
+Here's an example of how to integrate the gallery card into your dashboard:
+
+```yaml
+title: My Home
+views:
+  - title: Main
+    cards:
+      - type: custom:ha-gallery-card
+        title: Family Photos
+        aspect_ratio: '16:9'
+        media_path: /media/family_photos
+        transition_interval: 8
+        shuffle: true
+        
+      - type: custom:ha-gallery-card
+        title: Vacation Videos
+        aspect_ratio: '16:9'
+        media_path: /media/vacation_videos
+        transition_interval: 0  # Disable auto-transition for videos
+        default_volume: 70
+        
+  - title: Media
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:ha-gallery-card
+            title: Nature Gallery
+            aspect_ratio: '4:3'
+            media_path: /media/nature
+            transition_interval: 5
+            fit_mode: cover
+```
+
+### Tips
+- Set `transition_interval: 0` to disable auto-transition
+- Use `aspect_ratio` to maintain consistent card sizes
+- Consider using `fit_mode: cover` for mixed portrait/landscape content
+- Group related galleries in `vertical-stack` or `horizontal-stack` cards
 
 ## Contributing
 
