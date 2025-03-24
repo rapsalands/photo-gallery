@@ -1,12 +1,27 @@
 """The Home Assistant Gallery integration."""
 import os
 import logging
+import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.exceptions import ConfigEntryNotReady
+import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    CONF_MEDIA_PATH,
+    CONF_TRANSITION_INTERVAL,
+    CONF_SHUFFLE,
+    CONF_FIT_MODE,
+    CONF_DEFAULT_VOLUME,
+)
+
+CONFIG_SCHEMA = vol.Schema({
+    DOMAIN: vol.Schema({
+        vol.Required(CONF_MEDIA_PATH): cv.string,
+    })
+}, extra=vol.ALLOW_EXTRA)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.FRONTEND]
@@ -20,7 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Home Assistant Gallery from a config entry."""
     try:
         # Validate that the configured media path exists
-        media_path = entry.data["media_path"]
+        media_path = entry.data[CONF_MEDIA_PATH]
         if not os.path.isdir(media_path):
             raise ConfigEntryNotReady(f"Media path {media_path} does not exist")
 

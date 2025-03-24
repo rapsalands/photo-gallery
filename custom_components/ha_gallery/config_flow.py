@@ -22,6 +22,7 @@ from .const import (
     FIT_MODES,
 )
 
+@config_entries.HANDLERS.register(DOMAIN)
 class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Home Assistant Gallery."""
 
