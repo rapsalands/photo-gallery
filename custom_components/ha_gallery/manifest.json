@@ -1,6 +1,6 @@
 {
     "domain": "ha_gallery",
-    "name": "Home Assistant Gallery",
+    "name": "HA Photo Gallery",
     "documentation": "https://github.com/rapsalands/photo-gallery",
     "dependencies": [],
     "codeowners": ["@rapsalands"],
