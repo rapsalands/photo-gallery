@@ -1,7 +1,10 @@
 """The Home Assistant Gallery integration."""
+from __future__ import annotations
+
 import os
 import logging
 import voluptuous as vol
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -17,18 +20,31 @@ from .const import (
     CONF_DEFAULT_VOLUME,
 )
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required(CONF_MEDIA_PATH): cv.string,
-    })
-}, extra=vol.ALLOW_EXTRA)
-
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.FRONTEND]
+
+PLATFORMS: list[Platform] = [Platform.FRONTEND]
+
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema(
+            {
+                vol.Required(CONF_MEDIA_PATH): cv.string,
+            }
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Home Assistant Gallery component."""
-    hass.data.setdefault(DOMAIN, {})
+    if DOMAIN in config:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "import"},
+                data=config[DOMAIN],
+            )
+        )
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

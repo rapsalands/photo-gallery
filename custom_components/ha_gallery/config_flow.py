@@ -1,7 +1,9 @@
 """Config flow for Home Assistant Gallery integration."""
+from __future__ import annotations
+
 import os
 import voluptuous as vol
-from typing import Any, Dict, Optional
+from typing import Any
 
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -22,13 +24,12 @@ from .const import (
     FIT_MODES,
 )
 
-@config_entries.HANDLERS.register(DOMAIN)
 class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Home Assistant Gallery."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step."""
         errors = {}
 
@@ -66,7 +67,7 @@ class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> HAGalleryOptionsFlow:
         """Get the options flow for this handler."""
         return HAGalleryOptionsFlow(config_entry)
 
@@ -74,11 +75,11 @@ class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class HAGalleryOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
 
-    def __init__(self, config_entry):
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
