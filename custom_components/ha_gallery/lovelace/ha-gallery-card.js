@@ -137,13 +137,24 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async loadMediaList() {
-        // TODO: Implement API call to Home Assistant to get media list
-        // For now, using dummy data
-        this.mediaList = [
-            { type: 'image', url: '/local/media/image1.jpg' },
-            { type: 'video', url: '/local/media/video1.mp4' },
-            { type: 'image', url: '/local/media/image2.jpg' }
-        ];
+        try {
+            // Call Home Assistant API to get media list
+            const response = await this._hass.callWS({
+                type: 'ha_gallery/get_media',
+                media_path: this.config.media_path
+            });
+
+            if (response && response.success) {
+                this.mediaList = response.media_list;
+                _LOGGER.debug("Loaded media list:", this.mediaList);
+            } else {
+                console.error("Failed to load media list:", response);
+                this.mediaList = [];
+            }
+        } catch (error) {
+            console.error("Error loading media list:", error);
+            this.mediaList = [];
+        }
     }
 
     shuffleMediaList() {

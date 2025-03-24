@@ -8,12 +8,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
+from homeassistant.components import websocket_api
 
 from .const import (
     DOMAIN,
     CONF_MEDIA_PATH,
 )
 from .frontend import async_setup_frontend
+from .media import get_media_list
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +34,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the HA Gallery component."""
     _LOGGER.debug("Setting up HA Gallery integration")
     hass.data.setdefault(DOMAIN, {})
+
+    # Register WebSocket API
+    websocket_api.async_register_command(hass, websocket_get_media)
 
     # Set up frontend
     if not await async_setup_frontend(hass):
@@ -87,3 +92,24 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Update listener."""
     _LOGGER.debug("Reloading config entry %s", entry.entry_id)
     await hass.config_entries.async_reload(entry.entry_id)
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "ha_gallery/get_media",
+    vol.Required("media_path"): str,
+})
+@websocket_api.async_response
+async def websocket_get_media(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    """Handle get media command."""
+    media_path = msg["media_path"]
+    _LOGGER.debug("WebSocket request for media in path: %s", media_path)
+
+    def get_media():
+        """Get media list in executor."""
+        return get_media_list(media_path)
+
+    media_list = await hass.async_add_executor_job(get_media)
+    
+    connection.send_result(msg["id"], {
+        "success": True,
+        "media_list": media_list
+    })
