@@ -1,4 +1,4 @@
-"""The HA Gallery integration."""
+"""The HA Photo Gallery integration."""
 import os
 import logging
 import asyncio
@@ -6,7 +6,6 @@ import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
 from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
 
@@ -16,8 +15,6 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-PLATFORMS = [Platform.FRONTEND]
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -61,11 +58,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][entry.entry_id] = entry.data
         _LOGGER.debug("Stored config data: %s", entry.data)
 
-        for platform in PLATFORMS:
-            _LOGGER.debug("Setting up platform: %s", platform)
-            hass.async_create_task(
-                hass.config_entries.async_forward_entry_setup(entry, platform)
-            )
+        # Register the frontend
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(entry, "frontend")
+        )
 
         entry.async_on_unload(entry.add_update_listener(update_listener))
         _LOGGER.info("HA Gallery setup completed for entry %s", entry.entry_id)
@@ -78,14 +74,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading config entry %s", entry.entry_id)
-    unload_ok = all(
-        await asyncio.gather(
-            *(
-                hass.config_entries.async_forward_entry_unload(entry, platform)
-                for platform in PLATFORMS
-            )
-        )
-    )
+    
+    # Unload frontend
+    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "frontend")
 
     if unload_ok:
         _LOGGER.debug("Successfully unloaded entry %s", entry.entry_id)
