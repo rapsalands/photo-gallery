@@ -1,7 +1,24 @@
+((LitElement) => {
+    console.info(
+        '%c HA-GALLERY-CARD %c 1.0.8 ',
+        'color: white; background: #039be5; font-weight: 700;',
+        'color: #039be5; background: white; font-weight: 700;',
+    );
+})(window.customElements.get('home-assistant-main')
+    ? Object.getPrototypeOf(customElements.get('home-assistant-main'))
+    : Object.getPrototypeOf(customElements.get('hui-view')));
+
 class HAGalleryCard extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
+    }
+
+    setConfig(config) {
+        if (!config.media_path) {
+            throw new Error('Please define media_path');
+        }
+        this.config = config;
     }
 
     set hass(hass) {
@@ -15,10 +32,6 @@ class HAGalleryCard extends HTMLElement {
             this.loadConfiguration();
             this.setupGallery();
         }
-    }
-
-    setConfig(config) {
-        this.config = config;
     }
 
     loadConfiguration() {
@@ -243,11 +256,8 @@ class HAGalleryCard extends HTMLElement {
     }
 }
 
-if (!customElements.get('ha-gallery-card')) {
-    customElements.define('ha-gallery-card', HAGalleryCard);
-}
+customElements.define('ha-gallery-card', HAGalleryCard);
 
-// Add card to custom cards
 window.customCards = window.customCards || [];
 window.customCards.push({
     type: 'ha-gallery-card',
