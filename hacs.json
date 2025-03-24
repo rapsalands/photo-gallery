@@ -1,5 +1,5 @@
 {
-    "name": "Home Assistant Gallery",
+    "name": "HA Photo Gallery",
     "render_readme": true,
     "domains": ["ha_gallery"],
     "homeassistant": "2023.1.0",

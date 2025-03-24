@@ -2,7 +2,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Home Assistant Gallery",
+                "title": "HA Photo Gallery",
                 "description": "Set up your gallery configuration",
                 "data": {
                     "media_path": "Media Path",

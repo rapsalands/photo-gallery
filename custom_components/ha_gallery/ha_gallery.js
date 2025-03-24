@@ -242,7 +242,7 @@ customElements.define('ha-gallery-card', HAGalleryCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
     type: 'ha-gallery-card',
-    name: 'Home Assistant Gallery',
+    name: 'HA Photo Gallery',
     preview: false,
     description: 'A gallery card that displays images and videos with auto-transition'
 });

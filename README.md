@@ -1,4 +1,4 @@
-# Home Assistant Gallery
+# HA Photo Gallery
 
 A custom Home Assistant integration that provides a beautiful gallery card for displaying images, videos, and GIFs from your local media folder.
 
@@ -40,7 +40,7 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
 
 1. Go to Configuration > Integrations
 2. Click the "+ ADD INTEGRATION" button
-3. Search for "Home Assistant Gallery"
+3. Search for "HA Photo Gallery"
 4. Configure the following settings:
    - Media Path: Path to your media folder
    - Transition Interval: Time in seconds between transitions
@@ -57,7 +57,7 @@ You can add the gallery card to any dashboard using either the UI or YAML config
 #### Using the UI
 1. Edit your dashboard
 2. Click the "+" button to add a new card
-3. Search for "Home Assistant Gallery"
+3. Search for "HA Photo Gallery"
 4. Add the card
 5. (Optional) Adjust the card size in the dashboard
 

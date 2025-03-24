@@ -1,4 +1,4 @@
-"""Constants for the Home Assistant Gallery integration."""
+"""Constants for the HA Photo Gallery integration."""
 DOMAIN = "ha_gallery"
 
 # Configuration
