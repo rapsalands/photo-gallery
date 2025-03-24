@@ -4,19 +4,23 @@ import voluptuous as vol
 from typing import Any, Dict, Optional
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 
-from . import DOMAIN
-
-CONF_MEDIA_PATH = "media_path"
-CONF_TRANSITION_INTERVAL = "transition_interval"
-CONF_SHUFFLE = "shuffle"
-CONF_FIT_MODE = "fit_mode"
-CONF_DEFAULT_VOLUME = "default_volume"
-
-FIT_MODES = ["cover", "contain", "stretch"]
+from .const import (
+    DOMAIN,
+    CONF_MEDIA_PATH,
+    CONF_TRANSITION_INTERVAL,
+    CONF_SHUFFLE,
+    CONF_FIT_MODE,
+    CONF_DEFAULT_VOLUME,
+    DEFAULT_TRANSITION_INTERVAL,
+    DEFAULT_SHUFFLE,
+    DEFAULT_FIT_MODE,
+    DEFAULT_VOLUME,
+    FIT_MODES,
+)
 
 class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Home Assistant Gallery."""
@@ -34,8 +38,12 @@ class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not os.path.isdir(media_path):
                 errors[CONF_MEDIA_PATH] = "invalid_path"
             else:
+                # Check if this path is already configured
+                await self.async_set_unique_id(media_path)
+                self._abort_if_unique_id_configured()
+
                 return self.async_create_entry(
-                    title="Home Assistant Gallery",
+                    title=f"Gallery: {os.path.basename(media_path)}",
                     data=user_input
                 )
 
@@ -43,12 +51,12 @@ class HAGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema({
                 vol.Required(CONF_MEDIA_PATH, default="/media"): str,
-                vol.Required(CONF_TRANSITION_INTERVAL, default=5): vol.All(
+                vol.Required(CONF_TRANSITION_INTERVAL, default=DEFAULT_TRANSITION_INTERVAL): vol.All(
                     vol.Coerce(int), vol.Range(min=1)
                 ),
-                vol.Required(CONF_SHUFFLE, default=False): bool,
-                vol.Required(CONF_FIT_MODE, default="contain"): vol.In(FIT_MODES),
-                vol.Required(CONF_DEFAULT_VOLUME, default=50): vol.All(
+                vol.Required(CONF_SHUFFLE, default=DEFAULT_SHUFFLE): bool,
+                vol.Required(CONF_FIT_MODE, default=DEFAULT_FIT_MODE): vol.In(FIT_MODES),
+                vol.Required(CONF_DEFAULT_VOLUME, default=DEFAULT_VOLUME): vol.All(
                     vol.Coerce(int), vol.Range(min=0, max=100)
                 ),
             }),
@@ -81,28 +89,28 @@ class HAGalleryOptionsFlow(config_entries.OptionsFlow):
                     CONF_TRANSITION_INTERVAL,
                     default=self.config_entry.options.get(
                         CONF_TRANSITION_INTERVAL,
-                        self.config_entry.data.get(CONF_TRANSITION_INTERVAL, 5)
+                        self.config_entry.data.get(CONF_TRANSITION_INTERVAL, DEFAULT_TRANSITION_INTERVAL)
                     )
                 ): vol.All(vol.Coerce(int), vol.Range(min=1)),
                 vol.Required(
                     CONF_SHUFFLE,
                     default=self.config_entry.options.get(
                         CONF_SHUFFLE,
-                        self.config_entry.data.get(CONF_SHUFFLE, False)
+                        self.config_entry.data.get(CONF_SHUFFLE, DEFAULT_SHUFFLE)
                     )
                 ): bool,
                 vol.Required(
                     CONF_FIT_MODE,
                     default=self.config_entry.options.get(
                         CONF_FIT_MODE,
-                        self.config_entry.data.get(CONF_FIT_MODE, "contain")
+                        self.config_entry.data.get(CONF_FIT_MODE, DEFAULT_FIT_MODE)
                     )
                 ): vol.In(FIT_MODES),
                 vol.Required(
                     CONF_DEFAULT_VOLUME,
                     default=self.config_entry.options.get(
                         CONF_DEFAULT_VOLUME,
-                        self.config_entry.data.get(CONF_DEFAULT_VOLUME, 50)
+                        self.config_entry.data.get(CONF_DEFAULT_VOLUME, DEFAULT_VOLUME)
                     )
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
             })

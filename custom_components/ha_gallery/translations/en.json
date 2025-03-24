@@ -1,0 +1,37 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Home Assistant Gallery",
+                "description": "Set up your gallery configuration",
+                "data": {
+                    "media_path": "Media Path",
+                    "transition_interval": "Transition Interval (seconds)",
+                    "shuffle": "Shuffle Media",
+                    "fit_mode": "Media Fit Mode",
+                    "default_volume": "Default Video Volume"
+                }
+            }
+        },
+        "error": {
+            "invalid_path": "The specified media path does not exist"
+        },
+        "abort": {
+            "already_configured": "This media path is already configured"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Gallery Options",
+                "description": "Modify your gallery settings",
+                "data": {
+                    "transition_interval": "Transition Interval (seconds)",
+                    "shuffle": "Shuffle Media",
+                    "fit_mode": "Media Fit Mode",
+                    "default_volume": "Default Video Volume"
+                }
+            }
+        }
+    }
+}
