@@ -233,12 +233,21 @@ class HAGalleryCard extends HTMLElement {
     }
 
     static getStubConfig() {
-        return {};
+        return {
+            media_path: "/media",
+            transition_interval: 5,
+            shuffle: false,
+            fit_mode: "contain",
+            default_volume: 50
+        };
     }
 }
 
-customElements.define('ha-gallery-card', HAGalleryCard);
+if (!customElements.get('ha-gallery-card')) {
+    customElements.define('ha-gallery-card', HAGalleryCard);
+}
 
+// Add card to custom cards
 window.customCards = window.customCards || [];
 window.customCards.push({
     type: 'ha-gallery-card',

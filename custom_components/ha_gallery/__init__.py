@@ -13,6 +13,7 @@ from .const import (
     DOMAIN,
     CONF_MEDIA_PATH,
 )
+from .frontend import async_setup_frontend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +32,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the HA Gallery component."""
     _LOGGER.debug("Setting up HA Gallery integration")
     hass.data.setdefault(DOMAIN, {})
+
+    # Set up frontend
+    if not await async_setup_frontend(hass):
+        _LOGGER.error("Failed to set up frontend")
+        return False
 
     if DOMAIN in config:
         _LOGGER.debug("Found configuration.yaml config: %s", config[DOMAIN])
@@ -58,11 +64,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][entry.entry_id] = entry.data
         _LOGGER.debug("Stored config data: %s", entry.data)
 
-        # Register the frontend
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, "frontend")
-        )
-
         entry.async_on_unload(entry.add_update_listener(update_listener))
         _LOGGER.info("HA Gallery setup completed for entry %s", entry.entry_id)
         return True
@@ -74,17 +75,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading config entry %s", entry.entry_id)
-    
-    # Unload frontend
-    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "frontend")
 
-    if unload_ok:
-        _LOGGER.debug("Successfully unloaded entry %s", entry.entry_id)
+    if entry.entry_id in hass.data[DOMAIN]:
         hass.data[DOMAIN].pop(entry.entry_id)
-    else:
-        _LOGGER.error("Failed to unload entry %s", entry.entry_id)
+        _LOGGER.debug("Successfully unloaded entry %s", entry.entry_id)
+        return True
 
-    return unload_ok
+    return False
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Update listener."""
