@@ -1,10 +1,15 @@
 # HA Photo Gallery
 
-A custom Home Assistant integration that provides a beautiful gallery card for displaying images, videos, and GIFs from your local media folder.
+A custom Home Assistant integration that provides a beautiful gallery card for displaying images, videos, and GIFs from various media sources.
 
 ## Features
 
 - Display images, videos, and GIFs in a sleek gallery interface
+- Support for multiple media sources:
+  - Local media (Home Assistant's media folder)
+  - Local www directory
+  - Media source integration
+  - (Future) Google Photos integration
 - Auto-transition between media items with configurable timing
 - Support for both portrait and landscape orientations
 - Video playback with controls
@@ -42,7 +47,7 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
 2. Click the "+ ADD INTEGRATION" button
 3. Search for "HA Photo Gallery"
 4. Configure the following settings:
-   - Media Path: Path to your media folder
+   - Media Sources: Configure one or more media sources
    - Transition Interval: Time in seconds between transitions
    - Shuffle: Enable/disable random playback
    - Fit Mode: How media should fit in the display area
@@ -66,6 +71,9 @@ You can add the gallery card to any dashboard using either the UI or YAML config
 Basic configuration:
 ```yaml
 type: custom:ha-gallery-card
+media_sources:
+  - type: local
+    path: /local/photos  # Points to your www/photos directory
 ```
 
 Full configuration with all options:
@@ -73,12 +81,36 @@ Full configuration with all options:
 type: custom:ha-gallery-card
 title: My Photo Gallery
 aspect_ratio: '16:9'
-media_path: /media/photos  # Must match the path configured in integration
+media_sources:
+  - type: local
+    path: /local/photos
+  - type: media_source
+    path: media-source://media_source/local/gallery
 transition_interval: 5
 shuffle: true
 fit_mode: contain  # Options: contain, cover, stretch
 default_volume: 50
 ```
+
+### Media Source Types
+
+Currently supported media source types:
+
+1. `local`: Access files in Home Assistant's www directory
+   ```yaml
+   type: local
+   path: /local/photos  # Points to www/photos directory
+   ```
+
+2. `media_source`: Access files through Home Assistant's Media Source integration
+   ```yaml
+   type: media_source
+   path: media-source://media_source/local/gallery
+   ```
+
+Future media source types (coming soon):
+- `google_photos`: Access your Google Photos library
+- More integrations planned...
 
 ### Example Dashboard Layout
 
@@ -92,38 +124,39 @@ views:
       - type: custom:ha-gallery-card
         title: Family Photos
         aspect_ratio: '16:9'
-        media_path: /media/family_photos
+        media_sources:
+          - type: local
+            path: /local/family_photos
         transition_interval: 8
         shuffle: true
         
       - type: custom:ha-gallery-card
         title: Vacation Videos
         aspect_ratio: '16:9'
-        media_path: /media/vacation_videos
-        transition_interval: 0  # Disable auto-transition for videos
-        default_volume: 70
-        
-  - title: Media
-    cards:
-      - type: vertical-stack
-        cards:
-          - type: custom:ha-gallery-card
-            title: Nature Gallery
-            aspect_ratio: '4:3'
-            media_path: /media/nature
-            transition_interval: 5
-            fit_mode: cover
+        media_sources:
+          - type: media_source
+            path: media-source://media_source/local/vacation_videos
+        transition_interval: 10
+        shuffle: false
 ```
 
-### Tips
-- Set `transition_interval: 0` to disable auto-transition
-- Use `aspect_ratio` to maintain consistent card sizes
-- Consider using `fit_mode: cover` for mixed portrait/landscape content
-- Group related galleries in `vertical-stack` or `horizontal-stack` cards
+## Troubleshooting
+
+### Common Issues
+
+1. **No images showing up**: 
+   - Check that your media path is correct
+   - Verify file permissions
+   - Check supported file formats
+   - Look at Home Assistant logs for any errors
+
+2. **Path issues**:
+   - For local paths, remember to use `/local/` prefix
+   - For media source paths, use the full media-source URL
 
 ## Contributing
 
-Feel free to submit issues and pull requests for new features or improvements.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
