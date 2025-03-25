@@ -163,7 +163,79 @@ class HAGalleryCard extends HTMLElement {
                             media_content_id: `media-source://media_source/${mediaSourceId}`
                         });
                         console.debug("Media source response:", response);
-                        return response;
+
+                        // Recursively get all media items from directories
+                        const getAllMediaItems = async (item) => {
+                            console.debug("Processing media item:", item);
+                            let items = [];
+
+                            if (item.media_class === 'directory') {
+                                console.debug("Browsing directory:", item.media_content_id);
+                                const dirResponse = await this._hass.callWS({
+                                    type: 'media_source/browse_media',
+                                    media_content_id: item.media_content_id
+                                });
+                                console.debug("Directory response:", dirResponse);
+
+                                if (dirResponse && dirResponse.children) {
+                                    for (const child of dirResponse.children) {
+                                        items = items.concat(await getAllMediaItems(child));
+                                    }
+                                }
+                            } else if (item.media_class === 'image' || item.media_class === 'video') {
+                                // Get media URL
+                                console.debug("Getting URL for media item:", item.media_content_id);
+                                try {
+                                    const resolveResponse = await this._hass.callWS({
+                                        type: 'media_source/resolve_media',
+                                        media_content_id: item.media_content_id
+                                    });
+                                    console.debug("Resolve response:", resolveResponse);
+                                    
+                                    if (resolveResponse && resolveResponse.url) {
+                                        items.push({
+                                            type: item.media_class,
+                                            url: resolveResponse.url,
+                                            thumbnail: item.thumbnail
+                                        });
+                                    } else {
+                                        console.warn("No URL in resolve response for:", item.media_content_id);
+                                    }
+                                } catch (error) {
+                                    console.error("Error resolving media URL:", error);
+                                }
+                            }
+                            return items;
+                        };
+
+                        // Process root response
+                        if (response) {
+                            if (response.media_class === 'directory') {
+                                // It's a directory, process all items
+                                const items = await getAllMediaItems(response);
+                                console.debug("Found media items:", items);
+                                return { success: true, media_list: items };
+                            } else if (response.media_class === 'image' || response.media_class === 'video') {
+                                // Single media item
+                                const resolveResponse = await this._hass.callWS({
+                                    type: 'media_source/resolve_media',
+                                    media_content_id: response.media_content_id
+                                });
+                                console.debug("Single item resolve response:", resolveResponse);
+                                
+                                if (resolveResponse && resolveResponse.url) {
+                                    return {
+                                        success: true,
+                                        media_list: [{
+                                            type: response.media_class,
+                                            url: resolveResponse.url,
+                                            thumbnail: response.thumbnail
+                                        }]
+                                    };
+                                }
+                            }
+                        }
+                        return { success: false };
                     } else {
                         // Handle local source
                         const response = await this._hass.callWS({
@@ -186,18 +258,6 @@ class HAGalleryCard extends HTMLElement {
                     // Handle local source response
                     console.debug("Adding media from local source:", response.media_list);
                     return acc.concat(response.media_list);
-                } else if (response && response.children) {
-                    // Handle media source response
-                    console.debug("Processing media source children:", response.children);
-                    const mediaItems = response.children
-                        .filter(child => child.media_class === 'image' || child.media_class === 'video')
-                        .map(child => ({
-                            type: child.media_class,
-                            url: child.media_content_id,
-                            thumbnail: child.thumbnail
-                        }));
-                    console.debug("Adding media from media source:", mediaItems);
-                    return acc.concat(mediaItems);
                 } else {
                     console.warn("Invalid response format:", response);
                     return acc;
