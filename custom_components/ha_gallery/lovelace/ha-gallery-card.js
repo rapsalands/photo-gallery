@@ -51,11 +51,16 @@ class HAGalleryCard extends HTMLElement {
             :host {
                 display: block;
                 position: relative;
+                width: 100%;
+                height: 100%;
+                min-height: 200px;
             }
             .gallery-container {
                 width: 100%;
                 height: 100%;
+                min-height: 200px;
                 position: relative;
+                background: #000;
                 overflow: hidden;
             }
             .media-item {
@@ -73,7 +78,7 @@ class HAGalleryCard extends HTMLElement {
             img, video {
                 width: 100%;
                 height: 100%;
-                object-fit: ${this.fitMode};
+                object-fit: ${this.fitMode || 'contain'};
                 object-position: center;
             }
             .controls {
@@ -99,6 +104,14 @@ class HAGalleryCard extends HTMLElement {
             }
             .volume-control {
                 width: 100px;
+            }
+            .empty-gallery {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: #fff;
+                text-align: center;
             }
         `;
 
@@ -195,6 +208,11 @@ class HAGalleryCard extends HTMLElement {
             
             if (this.mediaList.length === 0) {
                 console.warn("No media found in any source");
+                const container = this.shadowRoot.querySelector('.gallery-container');
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'empty-gallery';
+                emptyMessage.textContent = 'No media found in configured sources';
+                container.appendChild(emptyMessage);
             }
         } catch (error) {
             console.error("Error loading media list:", error);
@@ -242,12 +260,12 @@ class HAGalleryCard extends HTMLElement {
             video.src = currentMedia.url;
             video.controls = true;
             video.volume = this.defaultVolume / 100;
-            video.style.objectFit = this.fitMode;
+            video.style.objectFit = this.fitMode || 'contain';
             mediaItem.appendChild(video);
         } else {
             const img = document.createElement('img');
             img.src = currentMedia.url;
-            img.style.objectFit = this.fitMode;
+            img.style.objectFit = this.fitMode || 'contain';
             mediaItem.appendChild(img);
         }
 
@@ -304,6 +322,10 @@ class HAGalleryCard extends HTMLElement {
         }
     }
 
+    static getConfigElement() {
+        return document.createElement('ha-gallery-editor');
+    }
+
     static getStubConfig() {
         return {
             media_sources: [
@@ -322,10 +344,70 @@ class HAGalleryCard extends HTMLElement {
 
 customElements.define('ha-gallery-card', HAGalleryCard);
 
+// Create editor class
+class HaGalleryEditor extends HTMLElement {
+    setConfig(config) {
+        this.config = config;
+    }
+
+    configChanged(newConfig) {
+        const event = new Event('config-changed', {
+            bubbles: true,
+            composed: true
+        });
+        event.detail = { config: newConfig };
+        this.dispatchEvent(event);
+    }
+
+    render() {
+        if (!this.config) {
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.innerHTML = `
+            <ha-form
+                .data=${this.config}
+                .schema=${[
+                    {
+                        name: "media_sources",
+                        selector: {
+                            object: {
+                                type: { selector: { select: { options: ["local", "media_source"] } } },
+                                path: { selector: { text: {} } }
+                            }
+                        }
+                    },
+                    { name: "transition_interval", selector: { number: { min: 1, max: 60 } } },
+                    { name: "shuffle", selector: { boolean: {} } },
+                    { 
+                        name: "fit_mode",
+                        selector: {
+                            select: {
+                                options: [
+                                    { value: "contain", label: "Contain" },
+                                    { value: "cover", label: "Cover" },
+                                    { value: "fill", label: "Fill" }
+                                ]
+                            }
+                        }
+                    },
+                    { name: "default_volume", selector: { number: { min: 0, max: 100 } } }
+                ]}
+                @value-changed=${e => this.configChanged(e.detail.value)}
+            ></ha-form>
+        `;
+
+        return container;
+    }
+}
+
+customElements.define('ha-gallery-editor', HaGalleryEditor);
+
 window.customCards = window.customCards || [];
 window.customCards.push({
-    type: 'ha-gallery-card',
-    name: 'HA Photo Gallery',
-    preview: false,
-    description: 'A gallery card that displays images and videos with auto-transition'
+    type: "ha-gallery-card",
+    name: "HA Gallery Card",
+    preview: true,
+    description: "A card that displays a gallery of images and videos"
 });

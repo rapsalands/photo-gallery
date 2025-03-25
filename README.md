@@ -6,17 +6,18 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
 
 - Display images, videos, and GIFs in a sleek gallery interface
 - Support for multiple media sources:
-  - Local media (Home Assistant's media folder)
-  - Local www directory
+  - Local media (Home Assistant's www directory)
   - Media source integration
   - (Future) Google Photos integration
 - Auto-transition between media items with configurable timing
 - Support for both portrait and landscape orientations
 - Video playback with controls
 - Touch/click controls for manual navigation
+- Visual editor for easy configuration
 - Configurable settings:
+  - Multiple media sources (up to 3)
   - Transition interval
-  - Media fit mode (cover, contain, stretch)
+  - Media fit mode (contain, cover, fill)
   - Shuffle mode
   - Default video volume
 - Subdirectory support for media folders
@@ -46,8 +47,16 @@ A custom Home Assistant integration that provides a beautiful gallery card for d
 1. Go to Configuration > Integrations
 2. Click the "+ ADD INTEGRATION" button
 3. Search for "HA Photo Gallery"
-4. Configure the following settings:
-   - Media Sources: Configure one or more media sources
+4. Configure your media sources and settings:
+   - Source 1 (Required):
+     - Type: 'local' or 'media_source'
+     - Path: Path to your media
+   - Source 2 (Optional):
+     - Type: 'local' or 'media_source'
+     - Path: Path to your media
+   - Source 3 (Optional):
+     - Type: 'local' or 'media_source'
+     - Path: Path to your media
    - Transition Interval: Time in seconds between transitions
    - Shuffle: Enable/disable random playback
    - Fit Mode: How media should fit in the display area
@@ -62,8 +71,8 @@ You can add the gallery card to any dashboard using either the UI or YAML config
 #### Using the UI
 1. Edit your dashboard
 2. Click the "+" button to add a new card
-3. Search for "HA Photo Gallery"
-4. Add the card
+3. Search for "HA Gallery"
+4. Configure your media sources and settings using the visual editor
 5. (Optional) Adjust the card size in the dashboard
 
 #### Using YAML
@@ -79,16 +88,16 @@ media_sources:
 Full configuration with all options:
 ```yaml
 type: custom:ha-gallery-card
-title: My Photo Gallery
-aspect_ratio: '16:9'
 media_sources:
   - type: local
     path: /local/photos
   - type: media_source
     path: media-source://media_source/local/gallery
+  - type: local
+    path: /local/vacation
 transition_interval: 5
 shuffle: true
-fit_mode: contain  # Options: contain, cover, stretch
+fit_mode: contain  # Options: contain, cover, fill
 default_volume: 50
 ```
 
@@ -97,67 +106,45 @@ default_volume: 50
 Currently supported media source types:
 
 1. `local`: Access files in Home Assistant's www directory
-   ```yaml
-   type: local
-   path: /local/photos  # Points to www/photos directory
-   ```
+   - Path format: `/local/path/to/files`
+   - Example: `/local/photos`
+   - Note: This maps to your Home Assistant's `www` directory
 
 2. `media_source`: Access files through Home Assistant's Media Source integration
-   ```yaml
-   type: media_source
-   path: media-source://media_source/local/gallery
-   ```
+   - Path format: `media-source://media_source/local/path/to/files`
+   - Example: `media-source://media_source/local/gallery`
+   - Note: This uses Home Assistant's built-in media browser
 
-Future media source types (coming soon):
-- `google_photos`: Access your Google Photos library
-- More integrations planned...
+### Supported File Types
 
-### Example Dashboard Layout
-
-Here's an example of how to integrate the gallery card into your dashboard:
-
-```yaml
-title: My Home
-views:
-  - title: Main
-    cards:
-      - type: custom:ha-gallery-card
-        title: Family Photos
-        aspect_ratio: '16:9'
-        media_sources:
-          - type: local
-            path: /local/family_photos
-        transition_interval: 8
-        shuffle: true
-        
-      - type: custom:ha-gallery-card
-        title: Vacation Videos
-        aspect_ratio: '16:9'
-        media_sources:
-          - type: media_source
-            path: media-source://media_source/local/vacation_videos
-        transition_interval: 10
-        shuffle: false
-```
+- Images: jpg, jpeg, png, gif, webp
+- Videos: mp4, webm, mov
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **No images showing up**: 
-   - Check that your media path is correct
+1. "No media found in configured sources"
+   - Check that your paths are correct
+   - For local sources, make sure files are in the www directory
+   - For media sources, check the path in Media Browser
+
+2. "Invalid path format"
+   - Local paths must start with `/local/`
+   - Media source paths must start with `media-source://media_source/`
+
+3. Images not displaying
+   - Check browser console for errors
    - Verify file permissions
-   - Check supported file formats
-   - Look at Home Assistant logs for any errors
+   - Ensure files are in supported formats
 
-2. **Path issues**:
-   - For local paths, remember to use `/local/` prefix
-   - For media source paths, use the full media-source URL
+## Support
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+If you're having issues:
+1. Check the Home Assistant logs for errors
+2. Check your browser's console for any JavaScript errors
+3. Open an issue on GitHub with:
+   - Your configuration
+   - Home Assistant logs
+   - Browser console logs
+   - Steps to reproduce the issue
