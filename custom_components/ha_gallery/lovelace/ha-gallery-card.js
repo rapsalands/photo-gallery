@@ -51,14 +51,11 @@ class HAGalleryCard extends HTMLElement {
             :host {
                 display: block;
                 position: relative;
-                width: 100%;
-                height: 100%;
             }
             .gallery-container {
                 width: 100%;
                 height: 100%;
                 position: relative;
-                background: #000;
                 overflow: hidden;
             }
             .media-item {
@@ -69,37 +66,36 @@ class HAGalleryCard extends HTMLElement {
                 height: 100%;
                 opacity: 0;
                 transition: opacity 0.5s ease-in-out;
-                object-fit: var(--fit-mode, contain);
             }
             .media-item.active {
                 opacity: 1;
+            }
+            img, video {
+                width: 100%;
+                height: 100%;
+                object-fit: ${this.fitMode};
+                object-position: center;
             }
             .controls {
                 position: absolute;
                 bottom: 0;
                 left: 0;
                 right: 0;
-                background: rgba(0,0,0,0.5);
+                background: rgba(0, 0, 0, 0.5);
+                color: white;
                 padding: 10px;
                 display: flex;
-                justify-content: center;
+                justify-content: space-between;
                 align-items: center;
-                gap: 10px;
                 opacity: 0;
                 transition: opacity 0.3s;
             }
-            .gallery-container:hover .controls {
+            :host(:hover) .controls {
                 opacity: 1;
             }
-            button {
-                background: none;
-                border: none;
-                color: white;
+            .play-pause, .prev, .next {
                 cursor: pointer;
-                padding: 5px 10px;
-            }
-            button:hover {
-                background: rgba(255,255,255,0.1);
+                padding: 5px;
             }
             .volume-control {
                 width: 100px;
@@ -108,21 +104,20 @@ class HAGalleryCard extends HTMLElement {
 
         const container = document.createElement('div');
         container.className = 'gallery-container';
-        
+
         const controls = document.createElement('div');
         controls.className = 'controls';
         controls.innerHTML = `
-            <button class="prev">Previous</button>
-            <button class="play-pause">Pause</button>
-            <button class="next">Next</button>
+            <div class="prev">⬅️</div>
+            <div class="play-pause">⏸️</div>
+            <div class="next">➡️</div>
             <input type="range" class="volume-control" min="0" max="100" value="${this.defaultVolume}">
         `;
 
+        container.appendChild(controls);
         this.shadowRoot.appendChild(style);
         this.shadowRoot.appendChild(container);
-        container.appendChild(controls);
 
-        // Event listeners
         controls.querySelector('.prev').addEventListener('click', () => this.previousMedia());
         controls.querySelector('.next').addEventListener('click', () => this.nextMedia());
         controls.querySelector('.play-pause').addEventListener('click', () => this.togglePlayPause());
@@ -146,13 +141,18 @@ class HAGalleryCard extends HTMLElement {
                 
                 try {
                     if (source.type === 'media_source') {
+                        // Handle media source browsing
+                        const mediaSourceId = source.path.split('media-source://media_source/')[1];
+                        console.debug("Browsing media source:", mediaSourceId);
+                        
                         const response = await this._hass.callWS({
                             type: 'media_source/browse_media',
-                            media_source_id: source.path.replace('media-source://', '')
+                            media_content_id: `media-source://media_source/${mediaSourceId}`
                         });
                         console.debug("Media source response:", response);
                         return response;
                     } else {
+                        // Handle local source
                         const response = await this._hass.callWS({
                             type: 'ha_gallery/get_media',
                             media_sources: [source]
@@ -170,11 +170,21 @@ class HAGalleryCard extends HTMLElement {
 
             this.mediaList = responses.reduce((acc, response) => {
                 if (response && response.success && response.media_list) {
-                    console.debug("Adding media from response:", response.media_list);
+                    // Handle local source response
+                    console.debug("Adding media from local source:", response.media_list);
                     return acc.concat(response.media_list);
                 } else if (response && response.children) {
-                    console.debug("Adding media from children:", response.children);
-                    return acc.concat(response.children);
+                    // Handle media source response
+                    console.debug("Processing media source children:", response.children);
+                    const mediaItems = response.children
+                        .filter(child => child.media_class === 'image' || child.media_class === 'video')
+                        .map(child => ({
+                            type: child.media_class,
+                            url: child.media_content_id,
+                            thumbnail: child.thumbnail
+                        }));
+                    console.debug("Adding media from media source:", mediaItems);
+                    return acc.concat(mediaItems);
                 } else {
                     console.warn("Invalid response format:", response);
                     return acc;
@@ -200,54 +210,68 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async showCurrentMedia() {
+        if (!this.mediaList || this.mediaList.length === 0) {
+            console.warn("No media to display");
+            return;
+        }
+
         const container = this.shadowRoot.querySelector('.gallery-container');
         const currentMedia = this.mediaList[this.mediaIndex];
         
-        // Remove previous active media
-        const activeMedia = container.querySelector('.media-item.active');
-        if (activeMedia) {
-            activeMedia.remove();
+        if (!currentMedia) {
+            console.error("Invalid media at index", this.mediaIndex);
+            return;
         }
 
-        // Create new media element
-        const mediaElement = currentMedia.type === 'video' 
-            ? document.createElement('video')
-            : document.createElement('img');
-        
-        mediaElement.className = 'media-item';
-        mediaElement.src = currentMedia.url;
-        mediaElement.style.setProperty('--fit-mode', this.fitMode);
+        console.debug("Showing media:", currentMedia);
 
-        if (currentMedia.type === 'video') {
-            mediaElement.volume = this.defaultVolume / 100;
-            mediaElement.addEventListener('ended', () => this.nextMedia());
-        }
-
-        container.insertBefore(mediaElement, container.firstChild);
-        
-        // Wait for media to load
-        await new Promise((resolve) => {
-            mediaElement.onload = resolve;
-            mediaElement.onerror = resolve;
+        // Remove old media items
+        const oldItems = container.querySelectorAll('.media-item');
+        oldItems.forEach(item => {
+            if (!item.classList.contains('active')) {
+                item.remove();
+            }
         });
 
-        mediaElement.classList.add('active');
+        // Create new media item
+        const mediaItem = document.createElement('div');
+        mediaItem.className = 'media-item';
 
-        // Set timer for next media if it's an image
-        if (currentMedia.type === 'image' && this.isPlaying) {
-            this.setNextMediaTimer();
+        if (currentMedia.type === 'video') {
+            const video = document.createElement('video');
+            video.src = currentMedia.url;
+            video.controls = true;
+            video.volume = this.defaultVolume / 100;
+            video.style.objectFit = this.fitMode;
+            mediaItem.appendChild(video);
+        } else {
+            const img = document.createElement('img');
+            img.src = currentMedia.url;
+            img.style.objectFit = this.fitMode;
+            mediaItem.appendChild(img);
         }
 
-        if (currentMedia.type === 'video' && this.isPlaying) {
-            mediaElement.play();
+        // Add new media item
+        container.insertBefore(mediaItem, container.firstChild);
+
+        // Trigger reflow
+        mediaItem.offsetHeight;
+
+        // Remove active class from old items and add to new
+        oldItems.forEach(item => item.classList.remove('active'));
+        mediaItem.classList.add('active');
+
+        // Set up next media timer if playing
+        if (this.isPlaying && currentMedia.type !== 'video') {
+            this.setNextMediaTimer();
         }
     }
 
     setNextMediaTimer() {
-        if (this.transitionTimer) {
-            clearTimeout(this.transitionTimer);
+        if (this.nextMediaTimer) {
+            clearTimeout(this.nextMediaTimer);
         }
-        this.transitionTimer = setTimeout(() => this.nextMedia(), this.transitionInterval * 1000);
+        this.nextMediaTimer = setTimeout(() => this.nextMedia(), this.transitionInterval * 1000);
     }
 
     nextMedia() {
@@ -263,32 +287,21 @@ class HAGalleryCard extends HTMLElement {
     togglePlayPause() {
         this.isPlaying = !this.isPlaying;
         const button = this.shadowRoot.querySelector('.play-pause');
-        button.textContent = this.isPlaying ? 'Pause' : 'Play';
+        button.textContent = this.isPlaying ? '⏸️' : '▶️';
 
-        const currentMedia = this.shadowRoot.querySelector('.media-item');
-        if (currentMedia.tagName === 'VIDEO') {
-            if (this.isPlaying) {
-                currentMedia.play();
-            } else {
-                currentMedia.pause();
-            }
-        } else if (this.isPlaying) {
+        if (this.isPlaying) {
             this.setNextMediaTimer();
-        } else {
-            clearTimeout(this.transitionTimer);
+        } else if (this.nextMediaTimer) {
+            clearTimeout(this.nextMediaTimer);
         }
     }
 
     updateVolume(value) {
+        this.defaultVolume = value;
         const video = this.shadowRoot.querySelector('video');
         if (video) {
             video.volume = value / 100;
         }
-        this.defaultVolume = value;
-    }
-
-    static getConfigElement() {
-        return document.createElement('ha-gallery-editor');
     }
 
     static getStubConfig() {
@@ -296,7 +309,7 @@ class HAGalleryCard extends HTMLElement {
             media_sources: [
                 {
                     type: 'local',
-                    path: '/media'
+                    path: '/local/photos'
                 }
             ],
             transition_interval: 5,
