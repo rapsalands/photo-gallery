@@ -2,7 +2,9 @@
 DOMAIN = "ha_gallery"
 
 # Configuration
-CONF_MEDIA_PATH = "media_path"
+CONF_MEDIA_SOURCES = "media_sources"
+CONF_SOURCE_TYPE = "type"
+CONF_SOURCE_PATH = "path"
 CONF_TRANSITION_INTERVAL = "transition_interval"
 CONF_SHUFFLE = "shuffle"
 CONF_FIT_MODE = "fit_mode"
@@ -16,3 +18,4 @@ DEFAULT_VOLUME = 50
 
 # Options
 FIT_MODES = ["contain", "cover", "stretch"]
+SOURCE_TYPES = ["local", "media_source"]

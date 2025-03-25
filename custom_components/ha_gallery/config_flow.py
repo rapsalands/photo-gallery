@@ -10,7 +10,9 @@ from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     DOMAIN,
-    CONF_MEDIA_PATH,
+    CONF_MEDIA_SOURCES,
+    CONF_SOURCE_TYPE,
+    CONF_SOURCE_PATH,
     CONF_TRANSITION_INTERVAL,
     CONF_SHUFFLE,
     CONF_FIT_MODE,
@@ -20,6 +22,7 @@ from .const import (
     DEFAULT_FIT_MODE,
     DEFAULT_VOLUME,
     FIT_MODES,
+    SOURCE_TYPES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,42 +49,55 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             _LOGGER.debug("Processing user input: %s", user_input)
-            if not os.path.isdir(user_input[CONF_MEDIA_PATH]):
-                _LOGGER.error("Invalid media path: %s", user_input[CONF_MEDIA_PATH])
-                self._errors[CONF_MEDIA_PATH] = "invalid_path"
-            else:
-                try:
-                    # Check if already configured
-                    _LOGGER.debug("Setting unique ID with path: %s", user_input[CONF_MEDIA_PATH])
-                    await self.async_set_unique_id(user_input[CONF_MEDIA_PATH])
-                    self._abort_if_unique_id_configured()
-
-                    _LOGGER.info("Creating entry with title: Gallery: %s", os.path.basename(user_input[CONF_MEDIA_PATH]))
+            
+            # Validate media sources
+            if CONF_MEDIA_SOURCES in user_input:
+                valid = True
+                for source in user_input[CONF_MEDIA_SOURCES]:
+                    if source[CONF_SOURCE_TYPE] not in SOURCE_TYPES:
+                        self._errors[CONF_MEDIA_SOURCES] = "invalid_source_type"
+                        valid = False
+                        break
+                    
+                    path = source[CONF_SOURCE_PATH]
+                    if source[CONF_SOURCE_TYPE] == 'local':
+                        if not path.startswith('/local/'):
+                            self._errors[CONF_MEDIA_SOURCES] = "invalid_local_path"
+                            valid = False
+                            break
+                    elif source[CONF_SOURCE_TYPE] == 'media_source':
+                        if not path.startswith('media-source://'):
+                            self._errors[CONF_MEDIA_SOURCES] = "invalid_media_source_path"
+                            valid = False
+                            break
+                
+                if valid:
                     return self.async_create_entry(
-                        title=f"Gallery: {os.path.basename(user_input[CONF_MEDIA_PATH])}",
+                        title="HA Gallery",
                         data=user_input
                     )
-                except Exception as ex:
-                    _LOGGER.exception("Error creating entry: %s", ex)
-                    self._errors["base"] = "unknown"
+            else:
+                self._errors["base"] = "no_media_sources"
 
-        # Show initial form
-        _LOGGER.debug("Showing config flow form with errors: %s", self._errors)
-        data_schema = vol.Schema({
-            vol.Required(CONF_MEDIA_PATH, default="/media"): str,
-            vol.Required(CONF_TRANSITION_INTERVAL, default=DEFAULT_TRANSITION_INTERVAL): vol.All(
-                vol.Coerce(int), vol.Range(min=1)
-            ),
-            vol.Required(CONF_SHUFFLE, default=DEFAULT_SHUFFLE): bool,
-            vol.Required(CONF_FIT_MODE, default=DEFAULT_FIT_MODE): vol.In(FIT_MODES),
-            vol.Required(CONF_DEFAULT_VOLUME, default=DEFAULT_VOLUME): vol.All(
+        # Show configuration form
+        schema = vol.Schema({
+            vol.Required(CONF_MEDIA_SOURCES): [
+                vol.Schema({
+                    vol.Required(CONF_SOURCE_TYPE): vol.In(SOURCE_TYPES),
+                    vol.Required(CONF_SOURCE_PATH): str,
+                })
+            ],
+            vol.Optional(CONF_TRANSITION_INTERVAL, default=DEFAULT_TRANSITION_INTERVAL): vol.Coerce(int),
+            vol.Optional(CONF_SHUFFLE, default=DEFAULT_SHUFFLE): bool,
+            vol.Optional(CONF_FIT_MODE, default=DEFAULT_FIT_MODE): vol.In(FIT_MODES),
+            vol.Optional(CONF_DEFAULT_VOLUME, default=DEFAULT_VOLUME): vol.All(
                 vol.Coerce(int), vol.Range(min=0, max=100)
             ),
         })
 
         return self.async_show_form(
             step_id="user",
-            data_schema=data_schema,
+            data_schema=schema,
             errors=self._errors,
         )
 

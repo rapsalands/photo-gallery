@@ -1,6 +1,6 @@
 ((LitElement) => {
     console.info(
-        '%c HA-GALLERY-CARD %c 1.0.8 ',
+        '%c HA-GALLERY-CARD %c 1.2.0 ',
         'color: white; background: #039be5; font-weight: 700;',
         'color: #039be5; background: white; font-weight: 700;',
     );
@@ -15,8 +15,8 @@ class HAGalleryCard extends HTMLElement {
     }
 
     setConfig(config) {
-        if (!config.media_path) {
-            throw new Error('Please define media_path');
+        if (!config.media_sources) {
+            throw new Error('Please define media_sources');
         }
         this.config = config;
     }
@@ -139,18 +139,29 @@ class HAGalleryCard extends HTMLElement {
     async loadMediaList() {
         try {
             // Call Home Assistant API to get media list
-            const response = await this._hass.callWS({
-                type: 'ha_gallery/get_media',
-                media_path: this.config.media_path
-            });
+            const responses = await Promise.all(this.config.media_sources.map(async (source) => {
+                if (source.type === 'media_source') {
+                    return this._hass.callWS({
+                        type: 'media_source/browse_media',
+                        media_source_id: source.path.replace('media-source://', '')
+                    });
+                } else {
+                    return this._hass.callWS({
+                        type: 'ha_gallery/get_media',
+                        media_path: source.path
+                    });
+                }
+            }));
 
-            if (response && response.success) {
-                this.mediaList = response.media_list;
-                _LOGGER.debug("Loaded media list:", this.mediaList);
-            } else {
-                console.error("Failed to load media list:", response);
-                this.mediaList = [];
-            }
+            this.mediaList = responses.reduce((acc, response) => {
+                if (response && response.success) {
+                    return acc.concat(response.media_list || response.children);
+                } else {
+                    return acc;
+                }
+            }, []);
+
+            _LOGGER.debug("Loaded media list:", this.mediaList);
         } catch (error) {
             console.error("Error loading media list:", error);
             this.mediaList = [];
@@ -258,7 +269,12 @@ class HAGalleryCard extends HTMLElement {
 
     static getStubConfig() {
         return {
-            media_path: "/media",
+            media_sources: [
+                {
+                    type: 'local',
+                    path: '/media'
+                }
+            ],
             transition_interval: 5,
             shuffle: false,
             fit_mode: "contain",
