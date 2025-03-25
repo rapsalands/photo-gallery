@@ -87,13 +87,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 @websocket_api.websocket_command({
     vol.Required("type"): "ha_gallery/get_media",
-    vol.Required("media_sources"): vol.All(cv.ensure_list, [MEDIA_SOURCE_SCHEMA]),
+    vol.Required("media_sources"): vol.All(
+        cv.ensure_list,
+        [vol.Schema({
+            vol.Required("type"): cv.string,
+            vol.Required("path"): cv.string,
+        })]
+    ),
 })
 @websocket_api.async_response
 async def websocket_get_media(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     """Handle get media WebSocket command."""
     try:
-        media_list = get_media_list(msg["media_sources"])
+        media_list = await get_media_list(msg["media_sources"])
         connection.send_result(msg["id"], {"success": True, "media_list": media_list})
     except Exception as ex:
         _LOGGER.error("Error getting media list: %s", ex)
