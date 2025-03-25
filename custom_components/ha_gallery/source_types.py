@@ -33,19 +33,33 @@ class LocalMediaSource(MediaSource):
             return []
 
         # Convert /local/ path to actual filesystem path
-        actual_path = '/config/www/' + path.replace('/local/', '', 1)
-        
+        www_path = path.replace('/local/', '', 1)
+        actual_path = os.path.join('/config/www', www_path)
+        _LOGGER.debug("Scanning directory: %s", actual_path)
+
         try:
+            if not os.path.exists(actual_path):
+                _LOGGER.error("Path does not exist: %s", actual_path)
+                return []
+
+            if not os.path.isdir(actual_path):
+                _LOGGER.error("Path is not a directory: %s", actual_path)
+                return []
+
             # Use async file operations
             async def scan_directory(directory: str) -> None:
-                for entry in await asyncio.to_thread(os.scandir, directory):
+                _LOGGER.debug("Scanning directory: %s", directory)
+                entries = await asyncio.to_thread(os.scandir, directory)
+                
+                for entry in entries:
                     try:
                         if entry.is_file():
                             extension = Path(entry.name).suffix.lower()
                             if extension in SUPPORTED_EXTENSIONS:
                                 # Convert back to /local/ URL
-                                rel_path = os.path.relpath(entry.path, '/config/www/')
+                                rel_path = os.path.relpath(entry.path, '/config/www')
                                 url_path = f'/local/{rel_path}'
+                                _LOGGER.debug("Found media file: %s -> %s", entry.path, url_path)
                                 media_list.append({
                                     'type': 'image' if extension in IMAGE_EXTENSIONS else 'video',
                                     'url': url_path,
@@ -55,11 +69,8 @@ class LocalMediaSource(MediaSource):
                     except Exception as err:
                         _LOGGER.error("Error processing %s: %s", entry.path, err)
 
-            if not os.path.exists(actual_path):
-                _LOGGER.error("Path does not exist: %s", actual_path)
-                return []
-
             await scan_directory(actual_path)
+            _LOGGER.debug("Found %d media files in %s", len(media_list), actual_path)
             return media_list
 
         except Exception as ex:
@@ -80,18 +91,31 @@ class MediaSourceIntegration(MediaSource):
 
         # Convert media source path to actual filesystem path
         actual_path = '/media/' + path.split('media-source://media_source/')[-1]
+        _LOGGER.debug("Scanning media source directory: %s", actual_path)
 
         try:
+            if not os.path.exists(actual_path):
+                _LOGGER.error("Path does not exist: %s", actual_path)
+                return []
+
+            if not os.path.isdir(actual_path):
+                _LOGGER.error("Path is not a directory: %s", actual_path)
+                return []
+
             # Use async file operations
             async def scan_directory(directory: str) -> None:
-                for entry in await asyncio.to_thread(os.scandir, directory):
+                _LOGGER.debug("Scanning directory: %s", directory)
+                entries = await asyncio.to_thread(os.scandir, directory)
+                
+                for entry in entries:
                     try:
                         if entry.is_file():
                             extension = Path(entry.name).suffix.lower()
                             if extension in SUPPORTED_EXTENSIONS:
                                 # Convert back to media source URL
-                                rel_path = os.path.relpath(entry.path, '/media/')
+                                rel_path = os.path.relpath(entry.path, '/media')
                                 url_path = f"media-source://media_source/{rel_path}"
+                                _LOGGER.debug("Found media file: %s -> %s", entry.path, url_path)
                                 media_list.append({
                                     'type': 'image' if extension in IMAGE_EXTENSIONS else 'video',
                                     'url': url_path,
@@ -101,11 +125,8 @@ class MediaSourceIntegration(MediaSource):
                     except Exception as err:
                         _LOGGER.error("Error processing %s: %s", entry.path, err)
 
-            if not os.path.exists(actual_path):
-                _LOGGER.error("Path does not exist: %s", actual_path)
-                return []
-
             await scan_directory(actual_path)
+            _LOGGER.debug("Found %d media files in %s", len(media_list), actual_path)
             return media_list
 
         except Exception as ex:
@@ -121,6 +142,7 @@ SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 def create_media_source(source_config: Dict[str, Any]) -> MediaSource:
     """Create a media source instance based on the configuration."""
     source_type = source_config.get('type', '')
+    _LOGGER.debug("Creating media source of type: %s with config: %s", source_type, source_config)
     
     if source_type == 'local':
         return LocalMediaSource(source_config)

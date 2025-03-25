@@ -138,30 +138,54 @@ class HAGalleryCard extends HTMLElement {
 
     async loadMediaList() {
         try {
+            console.debug("Loading media list with sources:", this.config.media_sources);
+            
             // Call Home Assistant API to get media list
             const responses = await Promise.all(this.config.media_sources.map(async (source) => {
-                if (source.type === 'media_source') {
-                    return this._hass.callWS({
-                        type: 'media_source/browse_media',
-                        media_source_id: source.path.replace('media-source://', '')
-                    });
-                } else {
-                    return this._hass.callWS({
-                        type: 'ha_gallery/get_media',
-                        media_sources: [source]  // Pass the source configuration
-                    });
+                console.debug("Processing source:", source);
+                
+                try {
+                    if (source.type === 'media_source') {
+                        const response = await this._hass.callWS({
+                            type: 'media_source/browse_media',
+                            media_source_id: source.path.replace('media-source://', '')
+                        });
+                        console.debug("Media source response:", response);
+                        return response;
+                    } else {
+                        const response = await this._hass.callWS({
+                            type: 'ha_gallery/get_media',
+                            media_sources: [source]
+                        });
+                        console.debug("Local source response:", response);
+                        return response;
+                    }
+                } catch (error) {
+                    console.error("Error processing source:", source, error);
+                    return null;
                 }
             }));
 
+            console.debug("All responses:", responses);
+
             this.mediaList = responses.reduce((acc, response) => {
-                if (response && response.success) {
-                    return acc.concat(response.media_list || response.children);
+                if (response && response.success && response.media_list) {
+                    console.debug("Adding media from response:", response.media_list);
+                    return acc.concat(response.media_list);
+                } else if (response && response.children) {
+                    console.debug("Adding media from children:", response.children);
+                    return acc.concat(response.children);
                 } else {
+                    console.warn("Invalid response format:", response);
                     return acc;
                 }
             }, []);
 
-            _LOGGER.debug("Loaded media list:", this.mediaList);
+            console.debug("Final media list:", this.mediaList);
+            
+            if (this.mediaList.length === 0) {
+                console.warn("No media found in any source");
+            }
         } catch (error) {
             console.error("Error loading media list:", error);
             this.mediaList = [];
