@@ -41,7 +41,7 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
-        return OptionsFlowHandler(config_entry)
+        return HaGalleryConfigFlow.OptionsFlowHandler(config_entry)
 
     async def async_step_import(self, import_config: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Import a config entry from configuration.yaml."""
@@ -113,43 +113,42 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=self._errors,
         )
 
+    class OptionsFlowHandler(config_entries.OptionsFlow):
+        """Handle options flow for the integration."""
 
-@config_entries.HANDLERS.register(DOMAIN)
-class OptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for the integration."""
+        def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+            """Initialize options flow."""
+            super().__init__()
+            self.config_entry = config_entry
+            _LOGGER.debug("Initializing options flow for entry: %s", config_entry.entry_id)
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-        _LOGGER.debug("Initializing options flow for entry: %s", config_entry.entry_id)
+        async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+            """Manage options."""
+            if user_input is not None:
+                return self.async_create_entry(title="", data=user_input)
 
-    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
-        """Manage options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            schema = {
+                vol.Optional(
+                    CONF_TRANSITION_INTERVAL,
+                    default=self.config_entry.options.get(
+                        CONF_TRANSITION_INTERVAL, DEFAULT_TRANSITION_INTERVAL
+                    ),
+                ): vol.Coerce(int),
+                vol.Optional(
+                    CONF_SHUFFLE,
+                    default=self.config_entry.options.get(CONF_SHUFFLE, DEFAULT_SHUFFLE),
+                ): bool,
+                vol.Optional(
+                    CONF_FIT_MODE,
+                    default=self.config_entry.options.get(CONF_FIT_MODE, DEFAULT_FIT_MODE),
+                ): vol.In(FIT_MODES),
+                vol.Optional(
+                    CONF_DEFAULT_VOLUME,
+                    default=self.config_entry.options.get(CONF_DEFAULT_VOLUME, DEFAULT_VOLUME),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+            }
 
-        schema = {
-            vol.Optional(
-                CONF_TRANSITION_INTERVAL,
-                default=self.config_entry.options.get(
-                    CONF_TRANSITION_INTERVAL, DEFAULT_TRANSITION_INTERVAL
-                ),
-            ): vol.Coerce(int),
-            vol.Optional(
-                CONF_SHUFFLE,
-                default=self.config_entry.options.get(CONF_SHUFFLE, DEFAULT_SHUFFLE),
-            ): bool,
-            vol.Optional(
-                CONF_FIT_MODE,
-                default=self.config_entry.options.get(CONF_FIT_MODE, DEFAULT_FIT_MODE),
-            ): vol.In(FIT_MODES),
-            vol.Optional(
-                CONF_DEFAULT_VOLUME,
-                default=self.config_entry.options.get(CONF_DEFAULT_VOLUME, DEFAULT_VOLUME),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
-        }
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(schema),
-        )
+            return self.async_show_form(
+                step_id="init",
+                data_schema=vol.Schema(schema),
+            )
