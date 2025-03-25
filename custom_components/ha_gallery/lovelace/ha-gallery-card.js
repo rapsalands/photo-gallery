@@ -98,12 +98,31 @@ class HAGalleryCard extends HTMLElement {
             :host(:hover) .controls {
                 opacity: 1;
             }
+            .controls-left, .controls-right {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
             .play-pause, .prev, .next {
                 cursor: pointer;
                 padding: 5px;
             }
             .volume-control {
                 width: 100px;
+            }
+            .duration {
+                margin-left: 10px;
+                font-size: 14px;
+                font-family: monospace;
+            }
+            .progress-bar {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 0%;
+                height: 2px;
+                background: #039be5;
+                transition: width 0.1s linear;
             }
             .empty-gallery {
                 position: absolute;
@@ -121,11 +140,20 @@ class HAGalleryCard extends HTMLElement {
         const controls = document.createElement('div');
         controls.className = 'controls';
         controls.innerHTML = `
-            <div class="prev">⬅️</div>
-            <div class="play-pause">⏸️</div>
-            <div class="next">➡️</div>
-            <input type="range" class="volume-control" min="0" max="100" value="${this.defaultVolume}">
+            <div class="controls-left">
+                <div class="prev">⬅️</div>
+                <div class="play-pause">⏸️</div>
+                <div class="next">➡️</div>
+                <div class="duration"></div>
+            </div>
+            <div class="controls-right">
+                <input type="range" class="volume-control" min="0" max="100" value="${this.defaultVolume}">
+            </div>
         `;
+
+        const progressBar = document.createElement('div');
+        progressBar.className = 'progress-bar';
+        controls.appendChild(progressBar);
 
         container.appendChild(controls);
         this.shadowRoot.appendChild(style);
@@ -303,6 +331,24 @@ class HAGalleryCard extends HTMLElement {
 
         console.debug("Showing media:", currentMedia);
 
+        // Clear any existing timer
+        if (this.nextMediaTimer) {
+            clearTimeout(this.nextMediaTimer);
+            this.nextMediaTimer = null;
+        }
+
+        // Reset progress bar
+        const progressBar = this.shadowRoot.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
+
+        // Clear duration display
+        const durationDisplay = this.shadowRoot.querySelector('.duration');
+        if (durationDisplay) {
+            durationDisplay.textContent = '';
+        }
+
         // Remove old media items
         const oldItems = container.querySelectorAll('.media-item');
         oldItems.forEach(item => {
@@ -321,11 +367,74 @@ class HAGalleryCard extends HTMLElement {
             video.controls = true;
             video.volume = this.defaultVolume / 100;
             video.style.objectFit = this.fitMode || 'contain';
+            video.playsInline = true;
+            video.autoplay = this.isPlaying;
+            video.muted = false;
+
+            // Handle video events
+            video.addEventListener('ended', () => {
+                console.debug("Video ended, moving to next media");
+                if (this.isPlaying) {
+                    this.nextMedia();
+                }
+            });
+
+            video.addEventListener('error', (e) => {
+                console.error("Video error:", e);
+                // Move to next media after error
+                if (this.isPlaying) {
+                    this.setNextMediaTimer();
+                }
+            });
+
+            video.addEventListener('loadeddata', () => {
+                console.debug("Video loaded");
+                if (this.isPlaying) {
+                    video.play().catch(e => console.error("Error playing video:", e));
+                }
+            });
+
+            video.addEventListener('timeupdate', () => {
+                if (durationDisplay && video.duration) {
+                    const currentTime = Math.floor(video.currentTime);
+                    const duration = Math.floor(video.duration);
+                    durationDisplay.textContent = `${this.formatTime(currentTime)} / ${this.formatTime(duration)}`;
+                }
+                if (progressBar && video.duration) {
+                    const progress = (video.currentTime / video.duration) * 100;
+                    progressBar.style.width = `${progress}%`;
+                }
+            });
+
             mediaItem.appendChild(video);
         } else {
             const img = document.createElement('img');
             img.src = currentMedia.url;
             img.style.objectFit = this.fitMode || 'contain';
+
+            // Handle image events
+            img.addEventListener('load', () => {
+                console.debug("Image loaded");
+                if (this.isPlaying) {
+                    this.setNextMediaTimer();
+                    // Start progress bar animation for images
+                    if (progressBar) {
+                        progressBar.style.transition = `width ${this.transitionInterval}s linear`;
+                        progressBar.style.width = '100%';
+                    }
+                    if (durationDisplay) {
+                        durationDisplay.textContent = `${this.formatTime(0)} / ${this.formatTime(this.transitionInterval)}`;
+                    }
+                }
+            });
+
+            img.addEventListener('error', () => {
+                console.error("Image failed to load:", currentMedia.url);
+                if (this.isPlaying) {
+                    this.setNextMediaTimer();
+                }
+            });
+
             mediaItem.appendChild(img);
         }
 
@@ -336,13 +445,21 @@ class HAGalleryCard extends HTMLElement {
         mediaItem.offsetHeight;
 
         // Remove active class from old items and add to new
-        oldItems.forEach(item => item.classList.remove('active'));
+        oldItems.forEach(item => {
+            const oldVideo = item.querySelector('video');
+            if (oldVideo) {
+                oldVideo.pause();
+            }
+            item.classList.remove('active');
+            item.remove();
+        });
         mediaItem.classList.add('active');
+    }
 
-        // Set up next media timer if playing
-        if (this.isPlaying && currentMedia.type !== 'video') {
-            this.setNextMediaTimer();
-        }
+    formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        seconds = Math.floor(seconds % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
     setNextMediaTimer() {
@@ -367,7 +484,14 @@ class HAGalleryCard extends HTMLElement {
         const button = this.shadowRoot.querySelector('.play-pause');
         button.textContent = this.isPlaying ? '⏸️' : '▶️';
 
-        if (this.isPlaying) {
+        const currentVideo = this.shadowRoot.querySelector('video');
+        if (currentVideo) {
+            if (this.isPlaying) {
+                currentVideo.play().catch(e => console.error("Error playing video:", e));
+            } else {
+                currentVideo.pause();
+            }
+        } else if (this.isPlaying) {
             this.setNextMediaTimer();
         } else if (this.nextMediaTimer) {
             clearTimeout(this.nextMediaTimer);
