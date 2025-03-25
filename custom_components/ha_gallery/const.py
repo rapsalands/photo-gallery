@@ -1,4 +1,4 @@
-"""Constants for the HA Photo Gallery integration."""
+"""Constants for the HA Gallery integration."""
 DOMAIN = "ha_gallery"
 
 # Configuration
@@ -14,8 +14,8 @@ CONF_DEFAULT_VOLUME = "default_volume"
 DEFAULT_TRANSITION_INTERVAL = 5
 DEFAULT_SHUFFLE = False
 DEFAULT_FIT_MODE = "contain"
-DEFAULT_VOLUME = 50
+DEFAULT_VOLUME = 15
 
 # Options
-FIT_MODES = ["contain", "cover", "stretch"]
+FIT_MODES = ["contain", "cover", "fill"]
 SOURCE_TYPES = ["local", "media_source"]

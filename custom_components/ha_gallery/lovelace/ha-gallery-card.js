@@ -41,7 +41,7 @@ class HAGalleryCard extends HTMLElement {
             this.transitionInterval = configEntry.attributes.transition_interval || 5;
             this.shuffle = configEntry.attributes.shuffle || false;
             this.fitMode = configEntry.attributes.fit_mode || 'contain';
-            this.defaultVolume = configEntry.attributes.default_volume || 50;
+            this.defaultVolume = configEntry.attributes.default_volume || 15;
         }
     }
 
@@ -83,7 +83,7 @@ class HAGalleryCard extends HTMLElement {
             }
             .controls {
                 position: absolute;
-                bottom: 0;
+                top: 0;
                 left: 0;
                 right: 0;
                 background: rgba(0, 0, 0, 0.5);
@@ -94,6 +94,7 @@ class HAGalleryCard extends HTMLElement {
                 align-items: center;
                 opacity: 0;
                 transition: opacity 0.3s;
+                z-index: 10;
             }
             :host(:hover) .controls {
                 opacity: 1;
@@ -521,7 +522,7 @@ class HAGalleryCard extends HTMLElement {
             transition_interval: 5,
             shuffle: false,
             fit_mode: "contain",
-            default_volume: 50
+            default_volume: 15
         };
     }
 }
