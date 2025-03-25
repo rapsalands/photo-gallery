@@ -37,6 +37,12 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._errors: Dict[str, str] = {}
         _LOGGER.debug("Initializing HA Gallery config flow")
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        """Get the options flow for this handler."""
+        return OptionsFlowHandler(config_entry)
+
     async def async_step_import(self, import_config: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Import a config entry from configuration.yaml."""
         _LOGGER.debug("Starting import step with config: %s", import_config)
@@ -106,6 +112,7 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(schema),
             errors=self._errors,
         )
+
 
 @config_entries.HANDLERS.register(DOMAIN)
 class OptionsFlowHandler(config_entries.OptionsFlow):
