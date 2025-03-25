@@ -31,7 +31,7 @@ class LocalMediaSource(MediaSource):
             return []
 
         # Convert /local/ path to actual filesystem path
-        actual_path = '/homeassistant/www/' + path.replace('/local/', '', 1)
+        actual_path = '/config/www/' + path.replace('/local/', '', 1)
         
         if not os.path.exists(actual_path):
             _LOGGER.error("Path does not exist: %s", actual_path)
@@ -44,7 +44,7 @@ class LocalMediaSource(MediaSource):
 
                 if extension in SUPPORTED_EXTENSIONS:
                     # Convert back to /local/ URL
-                    url_path = '/local/' + file_path.split('/homeassistant/www/', 1)[1]
+                    url_path = '/local/' + file_path.split('/config/www/', 1)[1]
                     media_list.append({
                         'type': 'image' if extension in IMAGE_EXTENSIONS else 'video',
                         'url': url_path,
