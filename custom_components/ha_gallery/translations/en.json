@@ -3,11 +3,14 @@
         "step": {
             "user": {
                 "title": "HA Photo Gallery",
-                "description": "Set up your gallery configuration",
+                "description": "Set up your gallery configuration. You can configure up to 3 media sources.",
                 "data": {
-                    "media_sources": "Media Sources",
-                    "source_type": "Source Type",
-                    "source_path": "Source Path",
+                    "source_1_type": "Source 1 Type",
+                    "source_1_path": "Source 1 Path",
+                    "source_2_type": "Source 2 Type (Optional)",
+                    "source_2_path": "Source 2 Path",
+                    "source_3_type": "Source 3 Type (Optional)",
+                    "source_3_path": "Source 3 Path",
                     "transition_interval": "Transition Interval (seconds)",
                     "shuffle": "Shuffle Media",
                     "fit_mode": "Media Fit Mode",

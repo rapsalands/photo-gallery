@@ -81,12 +81,20 @@ class HaGalleryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Show configuration form
         schema = vol.Schema({
-            vol.Required(CONF_MEDIA_SOURCES): [
-                vol.Schema({
+            vol.Required(CONF_MEDIA_SOURCES): {
+                vol.Required("source_1"): {
                     vol.Required(CONF_SOURCE_TYPE): vol.In(SOURCE_TYPES),
                     vol.Required(CONF_SOURCE_PATH): str,
-                })
-            ],
+                },
+                vol.Optional("source_2"): {
+                    vol.Required(CONF_SOURCE_TYPE): vol.In(SOURCE_TYPES),
+                    vol.Required(CONF_SOURCE_PATH): str,
+                },
+                vol.Optional("source_3"): {
+                    vol.Required(CONF_SOURCE_TYPE): vol.In(SOURCE_TYPES),
+                    vol.Required(CONF_SOURCE_PATH): str,
+                },
+            },
             vol.Optional(CONF_TRANSITION_INTERVAL, default=DEFAULT_TRANSITION_INTERVAL): vol.Coerce(int),
             vol.Optional(CONF_SHUFFLE, default=DEFAULT_SHUFFLE): bool,
             vol.Optional(CONF_FIT_MODE, default=DEFAULT_FIT_MODE): vol.In(FIT_MODES),
