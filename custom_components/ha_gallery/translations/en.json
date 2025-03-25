@@ -5,7 +5,9 @@
                 "title": "HA Photo Gallery",
                 "description": "Set up your gallery configuration",
                 "data": {
-                    "media_path": "Media Path",
+                    "media_sources": "Media Sources",
+                    "source_type": "Source Type",
+                    "source_path": "Source Path",
                     "transition_interval": "Transition Interval (seconds)",
                     "shuffle": "Shuffle Media",
                     "fit_mode": "Media Fit Mode",
@@ -14,10 +16,13 @@
             }
         },
         "error": {
-            "invalid_path": "The specified media path does not exist"
+            "invalid_source_type": "Invalid source type",
+            "invalid_local_path": "Local path must start with /local/",
+            "invalid_media_source_path": "Media source path must start with media-source://",
+            "no_media_sources": "Please configure at least one media source"
         },
         "abort": {
-            "already_configured": "This media path is already configured"
+            "already_configured": "This gallery is already configured"
         }
     },
     "options": {

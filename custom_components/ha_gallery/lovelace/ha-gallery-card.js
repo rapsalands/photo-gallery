@@ -148,7 +148,7 @@ class HAGalleryCard extends HTMLElement {
                 } else {
                     return this._hass.callWS({
                         type: 'ha_gallery/get_media',
-                        media_path: source.path
+                        media_sources: [source]  // Pass the source configuration
                     });
                 }
             }));
