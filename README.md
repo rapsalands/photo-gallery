@@ -13,17 +13,26 @@ A simple and elegant gallery card for Home Assistant that displays images and vi
 
 ## Installation
 
-### HACS (Recommended)
-1. Open HACS
-2. Click Frontend
-3. Click + button
-4. Search for "HA Gallery Card"
-5. Click Install
+### HACS Installation (Recommended)
+1. Open HACS in your Home Assistant
+2. Go to "Frontend" section
+3. Click the menu (3 dots) in the top right
+4. Select "Custom repositories"
+5. Add this repository URL: `https://github.com/rapsalands/photo-gallery`
+6. Select "Lovelace" as the category
+7. Click "ADD"
+8. Find "HA Gallery Card" in the list and click "DOWNLOAD"
+9. Add the following to your Lovelace resources (if not done automatically):
+```yaml
+resources:
+  - url: /hacsfiles/ha-gallery-card/ha-gallery-card.js
+    type: module
+```
 
 ### Manual Installation
 1. Download `ha-gallery-card.js` from the latest release
-2. Copy it to your `www` directory
-3. Add the following to your dashboard resources:
+2. Copy it to your Home Assistant's `www` folder
+3. Add this to your Lovelace resources:
 ```yaml
 resources:
   - url: /local/ha-gallery-card.js
