@@ -143,7 +143,10 @@ class HAGalleryCard extends HTMLElement {
         const oldMedia = container.querySelector('.media-item');
         
         if (oldMedia) {
-            if (oldMedia.tagName === 'VIDEO') oldMedia.pause();
+            if (oldMedia.tagName === 'VIDEO') {
+                oldMedia.pause();
+                oldMedia.currentTime = 0;
+            }
             oldMedia.remove();
         }
 
@@ -152,6 +155,11 @@ class HAGalleryCard extends HTMLElement {
             : this._createImageElement(media.url);
 
         container.appendChild(element);
+
+        // Only set timer for images, videos will use 'ended' event
+        if (media.type !== 'video' && this._isPlaying) {
+            this._setTimer();
+        }
     }
 
     _createVideoElement(url) {
@@ -162,7 +170,11 @@ class HAGalleryCard extends HTMLElement {
         video.style.objectFit = this._config.fit;
         video.controls = true;
         video.playsInline = true;
-        video.addEventListener('ended', () => this._next());
+        video.addEventListener('ended', () => {
+            if (this._isPlaying) {
+                this._next();
+            }
+        });
         video.addEventListener('error', () => this._next());
         video.addEventListener('loadedmetadata', () => {
             // Adjust container height based on video aspect ratio
@@ -172,7 +184,9 @@ class HAGalleryCard extends HTMLElement {
                 container.style.height = `${container.offsetWidth * aspectRatio}px`;
             }
         });
-        if (this._isPlaying) video.play();
+        if (this._isPlaying) {
+            video.play().catch(error => console.error('Error playing video:', error));
+        }
         return video;
     }
 
@@ -196,6 +210,13 @@ class HAGalleryCard extends HTMLElement {
 
     _setTimer() {
         if (this._timer) clearTimeout(this._timer);
+        
+        // Don't set timer if current media is video
+        const currentMedia = this.shadowRoot.querySelector('.media-item');
+        if (currentMedia && currentMedia.tagName === 'VIDEO') {
+            return; // Let video's 'ended' event handle transition
+        }
+        
         this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
     }
 
@@ -241,7 +262,7 @@ class HAGalleryCard extends HTMLElement {
                 position: relative;
                 background: #000;
                 overflow: hidden;
-                padding: 10px;
+                padding: 20px;
                 box-sizing: border-box;
             }
             .media-item {
@@ -249,13 +270,13 @@ class HAGalleryCard extends HTMLElement {
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                max-width: 100%;
-                max-height: 100%;
+                max-width: calc(100% - 40px);  /* Account for padding */
+                max-height: calc(100% - 40px);  /* Account for padding */
                 width: auto;
                 height: auto;
                 object-fit: scale-down;
-                border-radius: 4px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             }
             video.media-item {
                 width: 100%;
@@ -264,9 +285,9 @@ class HAGalleryCard extends HTMLElement {
             }
             .controls {
                 position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
+                top: 20px;  /* Match padding */
+                left: 20px;  /* Match padding */
+                right: 20px;  /* Match padding */
                 padding: 10px;
                 background: rgba(0,0,0,0.5);
                 color: white;
@@ -276,7 +297,7 @@ class HAGalleryCard extends HTMLElement {
                 opacity: 0;
                 transition: opacity 0.3s;
                 z-index: 1;
-                border-radius: 4px 4px 0 0;
+                border-radius: 8px 8px 0 0;
             }
             :host(:hover) .controls {
                 opacity: 1;
@@ -296,13 +317,14 @@ class HAGalleryCard extends HTMLElement {
             .media-container::before {
                 content: '';
                 position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 4px;
+                top: 20px;
+                left: 20px;
+                right: 20px;
+                bottom: 20px;
+                border: 2px solid rgba(255,255,255,0.2);
+                border-radius: 8px;
                 pointer-events: none;
+                box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
             }
         `;
 
