@@ -5,8 +5,6 @@ export const styles = `
         width: 100%;
         height: 100%;
         min-height: 200px;
-        padding: 8px;
-        box-sizing: border-box;
         background: #000;
     }
     .media-container {
@@ -20,12 +18,12 @@ export const styles = `
         justify-content: center;
     }
     .media-item {
-        max-width: 100%;
-        max-height: 100%;
+        max-width: 98%;  /* Leave small gap on sides */
+        max-height: 98%; /* Leave small gap on top/bottom */
         width: auto;
         height: auto;
         object-fit: scale-down;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.2);
     }
     video.media-item {
         width: 100%;
