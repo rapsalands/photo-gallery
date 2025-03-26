@@ -1,151 +1,126 @@
-# HA Photo Gallery
+# HA Gallery Card
 
-A custom Home Assistant integration that provides a beautiful gallery card for displaying images, videos, and GIFs from various media sources.
+A simple and elegant gallery card for Home Assistant that displays images and videos with auto-transition support.
 
 ## Features
 
-- Display images, videos, and GIFs in a sleek gallery interface
-- Support for multiple media sources:
-  - Local media (Home Assistant's www directory)
-  - Media source integration
-  - (Future) Google Photos integration
-- Auto-transition between media items with configurable timing
-- Support for both portrait and landscape orientations
-- Video playback with controls
-- Touch/click controls for manual navigation
-- Visual editor for easy configuration
-- Configurable settings:
-  - Multiple media sources (up to 3)
-  - Transition interval
-  - Media fit mode (contain, cover, fill)
-  - Shuffle mode
-  - Default video volume
-- Subdirectory support for media folders
+- Display images and videos in a sleek gallery interface
+- Support for both local files and media sources
+- Auto-transition between media items
+- Video playback with auto-advance
+- Simple controls for navigation
+- Configurable display options
 
 ## Installation
 
-### HACS Installation (Recommended)
-
-1. Make sure you have [HACS](https://hacs.xyz/) installed
-2. Add this repository to HACS as a custom repository:
-   - Click on HACS in the sidebar
-   - Click on the three dots in the top right corner
-   - Select "Custom repositories"
-   - Add the repository URL: `https://github.com/rapsalands/photo-gallery`
-   - Select "Integration" as the category
-3. Click on "Install"
-4. Restart Home Assistant
+### HACS (Recommended)
+1. Open HACS
+2. Click Frontend
+3. Click + button
+4. Search for "HA Gallery Card"
+5. Click Install
 
 ### Manual Installation
-
-1. Download the latest release
-2. Copy the `custom_components/ha_gallery` folder to your `config/custom_components` directory
-3. Restart Home Assistant
+1. Download `ha-gallery-card.js` from the latest release
+2. Copy it to your `www` directory
+3. Add the following to your dashboard resources:
+```yaml
+resources:
+  - url: /local/ha-gallery-card.js
+    type: module
+```
 
 ## Configuration
 
-1. Go to Configuration > Integrations
-2. Click the "+ ADD INTEGRATION" button
-3. Search for "HA Photo Gallery"
-4. Configure your media sources and settings:
-   - Source 1 (Required):
-     - Type: 'local' or 'media_source'
-     - Path: Path to your media
-   - Source 2 (Optional):
-     - Type: 'local' or 'media_source'
-     - Path: Path to your media
-   - Source 3 (Optional):
-     - Type: 'local' or 'media_source'
-     - Path: Path to your media
-   - Transition Interval: Time in seconds between transitions
-   - Shuffle: Enable/disable random playback
-   - Fit Mode: How media should fit in the display area
-   - Default Volume: Initial volume for video playback
+### Card Configuration
 
-## Usage
-
-### Dashboard Configuration
-
-You can add the gallery card to any dashboard using either the UI or YAML configuration.
-
-#### Using the UI
-1. Edit your dashboard
-2. Click the "+" button to add a new card
-3. Search for "HA Gallery"
-4. Configure your media sources and settings using the visual editor
-5. (Optional) Adjust the card size in the dashboard
-
-#### Using YAML
-
-Basic configuration:
 ```yaml
 type: custom:ha-gallery-card
-media_sources:
-  - type: local
-    path: /local/photos  # Points to your www/photos directory
+path: /local/photos
+transition_time: 5
+shuffle: false
+fit: contain
+volume: 15
 ```
 
-Full configuration with all options:
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| path | string | Required | Path to media files |
+| transition_time | number | 5 | Time in seconds between transitions |
+| shuffle | boolean | false | Enable random playback |
+| fit | string | contain | How media fits in display area (contain/cover/fill) |
+| volume | number | 15 | Default volume for videos (0-100) |
+
+### Path Configuration
+
+The card supports two types of paths:
+
+1. Local path (www directory):
+   ```yaml
+   path: /local/photos
+   ```
+   Points to files in your Home Assistant's www directory
+
+2. Media Source path:
+   ```yaml
+   path: /local/media_source/local/gallery
+   ```
+   Points to files through Home Assistant's Media Source integration
+
+### Example Configurations
+
+Basic local gallery:
 ```yaml
 type: custom:ha-gallery-card
-media_sources:
-  - type: local
-    path: /local/photos
-  - type: media_source
-    path: /local/gallery
-  - type: local
-    path: /local/vacation
-transition_interval: 5
+path: /local/photos
+transition_time: 5
+```
+
+Media source gallery with options:
+```yaml
+type: custom:ha-gallery-card
+path: /local/media_source/local/gallery
+transition_time: 8
 shuffle: true
-fit_mode: contain  # Options: contain, cover, fill
-default_volume: 50
+fit: cover
+volume: 20
 ```
 
-### Media Source Types
+Multiple cards in grid:
+```yaml
+type: grid
+columns: 2
+cards:
+  - type: custom:ha-gallery-card
+    path: /local/family_photos
+    transition_time: 5
+    fit: contain
+  - type: custom:ha-gallery-card
+    path: /local/vacation_videos
+    transition_time: 10
+    fit: cover
+```
 
-Currently supported media source types:
-
-1. `local`: Access files in Home Assistant's www directory
-   - Path format: `/local/path/to/files`
-   - Example: `/local/photos`
-   - Note: This maps to your Home Assistant's `www` directory
-
-2. `media_source`: Access files through Home Assistant's Media Source integration
-   - Path format: `/local/path/to/files` (same as local type)
-   - Example: `/local/gallery`
-   - Note: This uses Home Assistant's built-in media browser
-
-### Supported File Types
+## Supported File Types
 
 - Images: jpg, jpeg, png, gif, webp
 - Videos: mp4, webm, mov
 
 ## Troubleshooting
 
-### Common Issues
-
-1. "No media found in configured sources"
-   - Check that your paths are correct
-   - For local sources, make sure files are in the www directory
-   - For media sources, check the path in Media Browser
-
-2. "Invalid path format"
-   - All paths must start with `/local/`
-   - The path after `/local/` maps to www directory for local type
-   - The path after `/local/` maps to media source for media_source type
-
-3. Images not displaying
+1. No media showing
+   - Check path is correct
+   - Verify files exist in specified location
    - Check browser console for errors
-   - Verify file permissions
-   - Ensure files are in supported formats
 
-## Support
+2. Videos not playing
+   - Check file format is supported
+   - Check volume settings
+   - Look for browser console errors
 
-If you're having issues:
-1. Check the Home Assistant logs for errors
-2. Check your browser's console for any JavaScript errors
-3. Open an issue on GitHub with:
-   - Your configuration
-   - Home Assistant logs
-   - Browser console logs
-   - Steps to reproduce the issue
+3. Auto-transition not working
+   - Check transition_time setting
+   - For videos, transition happens after video ends
+   - Check if playback is paused
