@@ -41,12 +41,16 @@ class HAGalleryCard extends HTMLElement {
         if (!['local', 'media_source'].includes(config.source_type)) {
             throw new Error('source_type must be either "local" or "media_source"');
         }
-        this._config = config;
-        this._config.source_type = config.source_type || 'local';
-        this._config.transition_time = config.transition_time || 5;
-        this._config.shuffle = config.shuffle || false;
-        this._config.fit = config.fit || 'contain';
-        this._config.volume = config.volume || 15;
+
+        // Create a new config object instead of modifying the input
+        this._config = {
+            source_type: config.source_type || 'local',
+            path: config.path,
+            transition_time: config.transition_time || 5,
+            shuffle: config.shuffle || false,
+            fit: config.fit || 'contain',
+            volume: config.volume || 15
+        };
         
         this.render();
     }
