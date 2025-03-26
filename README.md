@@ -45,6 +45,7 @@ resources:
 
 ```yaml
 type: custom:ha-gallery-card
+source_type: local     # 'local' or 'media_source'
 path: /local/photos
 transition_time: 5
 shuffle: false
@@ -56,33 +57,33 @@ volume: 15
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
+| source_type | string | local | Type of media source ('local' or 'media_source') |
 | path | string | Required | Path to media files |
 | transition_time | number | 5 | Time in seconds between transitions |
 | shuffle | boolean | false | Enable random playback |
 | fit | string | contain | How media fits in display area (contain/cover/fill) |
 | volume | number | 15 | Default volume for videos (0-100) |
 
-### Path Configuration
+### Source Types and Paths
 
-The card supports two types of paths:
+1. Local files (www directory):
+```yaml
+source_type: local
+path: /local/photos    # Points to your www/photos directory
+```
 
-1. Local path (www directory):
-   ```yaml
-   path: /local/photos
-   ```
-   Points to files in your Home Assistant's www directory
-
-2. Media Source path:
-   ```yaml
-   path: /local/media_source/local/gallery
-   ```
-   Points to files through Home Assistant's Media Source integration
+2. Media Source:
+```yaml
+source_type: media_source
+path: /local/gallery   # Uses media source integration
+```
 
 ### Example Configurations
 
 Basic local gallery:
 ```yaml
 type: custom:ha-gallery-card
+source_type: local
 path: /local/photos
 transition_time: 5
 ```
@@ -90,7 +91,8 @@ transition_time: 5
 Media source gallery with options:
 ```yaml
 type: custom:ha-gallery-card
-path: /local/media_source/local/gallery
+source_type: media_source
+path: /local/gallery
 transition_time: 8
 shuffle: true
 fit: cover
@@ -103,10 +105,12 @@ type: grid
 columns: 2
 cards:
   - type: custom:ha-gallery-card
+    source_type: local
     path: /local/family_photos
     transition_time: 5
     fit: contain
   - type: custom:ha-gallery-card
+    source_type: media_source
     path: /local/vacation_videos
     transition_time: 10
     fit: cover

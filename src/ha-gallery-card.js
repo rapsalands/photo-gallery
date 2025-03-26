@@ -25,6 +25,7 @@ class HAGalleryCard extends HTMLElement {
 
     static getStubConfig() {
         return {
+            source_type: 'local',  // 'local' or 'media_source'
             path: '/local/photos',
             transition_time: 5,
             shuffle: false,
@@ -37,7 +38,11 @@ class HAGalleryCard extends HTMLElement {
         if (!config.path) {
             throw new Error('Please define path');
         }
+        if (!['local', 'media_source'].includes(config.source_type)) {
+            throw new Error('source_type must be either "local" or "media_source"');
+        }
         this._config = config;
+        this._config.source_type = config.source_type || 'local';
         this._config.transition_time = config.transition_time || 5;
         this._config.shuffle = config.shuffle || false;
         this._config.fit = config.fit || 'contain';
@@ -55,10 +60,9 @@ class HAGalleryCard extends HTMLElement {
 
     async _loadMedia() {
         try {
-            const isMediaSource = !this._config.path.startsWith('/local/');
             let mediaList = [];
 
-            if (isMediaSource) {
+            if (this._config.source_type === 'media_source') {
                 mediaList = await this._loadFromMediaSource();
             } else {
                 mediaList = await this._loadFromLocal();
@@ -297,6 +301,7 @@ class HaGalleryEditor extends HTMLElement {
             <ha-form
                 .data=${this._config}
                 .schema=${[
+                    { name: 'source_type', selector: { select: { options: [{ value: 'local', label: 'Local' }, { value: 'media_source', label: 'Media Source' }] } } },
                     { name: 'path', selector: { text: {} } },
                     { name: 'transition_time', selector: { number: { min: 1, max: 60 } } },
                     { name: 'shuffle', selector: { boolean: {} } },
