@@ -82,10 +82,16 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async _loadFromMediaSource() {
-        const path = this._config.path.replace('/local/', '');
+        // Remove /local/ prefix if present
+        const path = this._config.path.replace(/^\/local\//, '');
+        // If path is empty or just "local", use the root media source
+        const mediaSourceId = path || 'local';
+        
+        console.debug("Browsing media source:", mediaSourceId);
+        
         const response = await this._hass.callWS({
             type: 'media_source/browse_media',
-            media_content_id: `media-source://media_source/${path}`
+            media_content_id: `media-source://media_source/${mediaSourceId}`
         });
 
         return this._processMediaSourceResponse(response);

@@ -69,14 +69,30 @@ volume: 15
 1. Local files (www directory):
 ```yaml
 source_type: local
-path: /local/photos    # Points to your www/photos directory
+path: /local/photos    # Points to www/photos directory
 ```
 
 2. Media Source:
 ```yaml
+# Browse root of media sources
 source_type: media_source
-path: /local/gallery   # Uses media source integration
+path: /local           # Shows all media sources
+
+# Browse specific directory
+source_type: media_source
+path: /local/pictures  # Shows contents of "pictures" directory
+
+# Browse specific media source
+source_type: media_source
+path: /local/media_source/local/gallery  # Shows contents of gallery in local media source
 ```
+
+The path is processed as follows:
+- For `local` source type: `/local/photos` points to `www/photos` directory
+- For `media_source` type:
+  - `/local` or empty: Shows all media sources
+  - `/local/directory`: Shows contents of "directory"
+  - `/local/media_source/source/path`: Shows contents of specific media source path
 
 ### Example Configurations
 
