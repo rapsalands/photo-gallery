@@ -38,18 +38,18 @@ class HAGalleryCard extends HTMLElement {
         if (!config.path) {
             throw new Error('Please define path');
         }
-        if (!['local', 'media_source'].includes(config.source_type)) {
+        if (!config.source_type || !['local', 'media_source'].includes(config.source_type)) {
             throw new Error('source_type must be either "local" or "media_source"');
         }
 
-        // Create a new config object instead of modifying the input
+        // Create a new config object with all properties
         this._config = {
-            source_type: config.source_type || 'local',
+            source_type: config.source_type,
             path: config.path,
             transition_time: config.transition_time || 5,
-            shuffle: config.shuffle || false,
+            shuffle: Boolean(config.shuffle),
             fit: config.fit || 'contain',
-            volume: config.volume || 15
+            volume: Number(config.volume || 15)
         };
         
         this.render();
@@ -284,18 +284,26 @@ class HAGalleryCard extends HTMLElement {
 customElements.define('ha-gallery-card', HAGalleryCard);
 
 // Editor
-class HaGalleryEditor extends HTMLElement {
+class HAGalleryEditor extends HTMLElement {
     setConfig(config) {
-        this._config = config;
+        this._config = {
+            source_type: config.source_type || 'local',
+            path: config.path || '',
+            transition_time: config.transition_time || 5,
+            shuffle: config.shuffle || false,
+            fit: config.fit || 'contain',
+            volume: config.volume || 15
+        };
+        this.render();
     }
 
-    configChanged(newConfig) {
-        const event = new Event('config-changed', {
+    _valueChanged(ev) {
+        const config = ev.detail.value;
+        this.dispatchEvent(new CustomEvent('config-changed', {
+            detail: { config },
             bubbles: true,
             composed: true
-        });
-        event.detail = { config: newConfig };
-        this.dispatchEvent(event);
+        }));
     }
 
     render() {
@@ -303,10 +311,20 @@ class HaGalleryEditor extends HTMLElement {
 
         this.innerHTML = `
             <ha-form
-                .data=${this._config}
                 .schema=${[
-                    { name: 'source_type', selector: { select: { options: [{ value: 'local', label: 'Local' }, { value: 'media_source', label: 'Media Source' }] } } },
-                    { name: 'path', selector: { text: {} } },
+                    { 
+                        name: 'source_type',
+                        required: true,
+                        selector: {
+                            select: {
+                                options: [
+                                    { value: 'local', label: 'Local' },
+                                    { value: 'media_source', label: 'Media Source' }
+                                ]
+                            }
+                        }
+                    },
+                    { name: 'path', required: true, selector: { text: {} } },
                     { name: 'transition_time', selector: { number: { min: 1, max: 60 } } },
                     { name: 'shuffle', selector: { boolean: {} } },
                     { 
@@ -323,13 +341,14 @@ class HaGalleryEditor extends HTMLElement {
                     },
                     { name: 'volume', selector: { number: { min: 0, max: 100 } } }
                 ]}
-                @value-changed=${e => this.configChanged(e.detail.value)}
+                .data=${this._config}
+                @value-changed=${this._valueChanged}
             ></ha-form>
         `;
     }
 }
 
-customElements.define('ha-gallery-editor', HaGalleryEditor);
+customElements.define('ha-gallery-editor', HAGalleryEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
