@@ -1,3 +1,5 @@
+import { styles } from './styles.js';
+
 class HAGalleryCard extends HTMLElement {
     constructor() {
         super();
@@ -247,74 +249,7 @@ class HAGalleryCard extends HTMLElement {
 
     render() {
         const style = document.createElement('style');
-        style.textContent = `
-            :host {
-                display: block;
-                position: relative;
-                width: 100%;
-                height: 100%;
-                min-height: 200px;
-            }
-            .media-container {
-                width: 100%;
-                height: 100%;
-                min-height: 200px;
-                position: relative;
-                background: #000;
-                overflow: hidden;
-                padding: 12px;
-                box-sizing: border-box;
-                border: 1px solid rgba(255,255,255,0.2);
-                border-radius: 4px;
-            }
-            .media-item {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                max-width: calc(100% - 24px);  /* Account for padding */
-                max-height: calc(100% - 24px);  /* Account for padding */
-                width: auto;
-                height: auto;
-                object-fit: scale-down;
-            }
-            video.media-item {
-                width: 100%;
-                height: 100%;
-                object-fit: contain;
-            }
-            .controls {
-                position: absolute;
-                top: 12px;  /* Match padding */
-                left: 12px;  /* Match padding */
-                right: 12px;  /* Match padding */
-                padding: 10px;
-                background: rgba(0,0,0,0.5);
-                color: white;
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-                opacity: 0;
-                transition: opacity 0.3s;
-                z-index: 1;
-                border-radius: 4px;
-            }
-            :host(:hover) .controls {
-                opacity: 1;
-            }
-            .control-button {
-                cursor: pointer;
-                padding: 5px 10px;
-                background: none;
-                border: none;
-                color: white;
-                font-size: 20px;
-                transition: transform 0.2s;
-            }
-            .control-button:hover {
-                transform: scale(1.1);
-            }
-        `;
+        style.textContent = styles;
 
         const container = document.createElement('div');
         container.className = 'media-container';
