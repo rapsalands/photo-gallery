@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Sample Images</title>
+</head>
+<body>
+    <canvas id="canvas" style="display: none;"></canvas>
+    <script>
+        function createImage(width, height, color, text, filename) {
+            const canvas = document.getElementById('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill background
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Add text
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, width/2, height/2);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/jpeg');
+            link.click();
+        }
+
+        // Create sample images
+        createImage(800, 600, '#3498db', 'Sample 1 (800x600)', 'sample1.jpg');
+        createImage(600, 800, '#e74c3c', 'Sample 2 (600x800)', 'sample2.jpg');
+        createImage(1024, 768, '#2ecc71', 'Sample 3 (1024x768)', 'sample3.jpg');
+    </script>
+</body>
+</html>

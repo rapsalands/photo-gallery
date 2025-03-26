@@ -59,7 +59,7 @@ class HAGalleryCard extends HTMLElement {
 
     set hass(hass) {
         this._hass = hass;
-        if (!this._mediaList.length) {
+        if (!this._mediaList.length && this._config) {
             this._loadMedia();
         }
     }
@@ -74,9 +74,11 @@ class HAGalleryCard extends HTMLElement {
                 mediaList = await this._loadFromLocal();
             }
 
-            this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
-            if (this._mediaList.length) {
+            if (mediaList && mediaList.length > 0) {
+                this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
                 this._showMedia();
+            } else {
+                console.warn('No media found in the specified path');
             }
         } catch (error) {
             console.error('Error loading media:', error);
@@ -84,42 +86,32 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async _loadFromMediaSource() {
-        // Remove /local/ prefix if present
-        const path = this._config.path.replace(/^\/local\//, '');
-        // If path is empty or just "local", use the root media source
-        const mediaSourceId = path || 'local';
-        
-        console.debug("Browsing media source:", mediaSourceId);
-        
-        const response = await this._hass.callWS({
-            type: 'media_source/browse_media',
-            media_content_id: `media-source://media_source/${mediaSourceId}`
-        });
-
-        return this._processMediaSourceResponse(response);
-    }
-
-    async _processMediaSourceResponse(item) {
-        let items = [];
-        
-        if (item.media_class === 'directory' && item.children) {
-            for (const child of item.children) {
-                items = items.concat(await this._processMediaSourceResponse(child));
-            }
-        } else if (item.media_class === 'image' || item.media_class === 'video') {
-            const resolveResponse = await this._hass.callWS({
-                type: 'media_source/resolve_media',
-                media_content_id: item.media_content_id
+        try {
+            const response = await this._hass.callWS({
+                type: 'media_source/browse_media',
+                media_content_id: this._config.path
             });
-            if (resolveResponse?.url) {
-                items.push({
-                    url: resolveResponse.url,
-                    type: item.media_class
-                });
+
+            if (response && response.children) {
+                return Promise.all(response.children.map(async (item) => {
+                    if (item.media_class === 'image') {
+                        const resolveResponse = await this._hass.callWS({
+                            type: 'media_source/resolve_media',
+                            media_content_id: item.media_content_id
+                        });
+                        return {
+                            url: resolveResponse.url,
+                            type: 'image'
+                        };
+                    }
+                    return null;
+                })).then(items => items.filter(item => item !== null));
             }
+            return [];
+        } catch (error) {
+            console.error('Error loading from media source:', error);
+            return [];
         }
-        
-        return items;
     }
 
     async _loadFromLocal() {
@@ -137,12 +129,54 @@ class HAGalleryCard extends HTMLElement {
         return newArray;
     }
 
+    render() {
+        const style = document.createElement('style');
+        style.textContent = styles;
+
+        const container = document.createElement('div');
+        container.className = 'media-container';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'media-wrapper';
+        
+        const controls = document.createElement('div');
+        controls.className = 'controls';
+        controls.innerHTML = `
+            <button class="control-button prev">⬅️</button>
+            <button class="control-button play-pause">${this._isPlaying ? '⏸️' : '▶️'}</button>
+            <button class="control-button next">➡️</button>
+        `;
+
+        wrapper.appendChild(controls);
+        container.appendChild(wrapper);
+        
+        // Clear the shadow root
+        while (this.shadowRoot.firstChild) {
+            this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+        }
+
+        // Add new elements
+        this.shadowRoot.appendChild(style);
+        this.shadowRoot.appendChild(container);
+
+        // Wait for elements to be in the DOM before adding listeners
+        requestAnimationFrame(() => {
+            const prevButton = this.shadowRoot.querySelector('.prev');
+            const nextButton = this.shadowRoot.querySelector('.next');
+            const playPauseButton = this.shadowRoot.querySelector('.play-pause');
+            
+            if (prevButton) prevButton.addEventListener('click', () => this._previous());
+            if (nextButton) nextButton.addEventListener('click', () => this._next());
+            if (playPauseButton) playPauseButton.addEventListener('click', () => this._togglePlayPause());
+        });
+    }
+
     _showMedia() {
         if (!this._mediaList.length) return;
 
         const media = this._mediaList[this._currentIndex];
-        const figure = this.shadowRoot.querySelector('figure');
-        const oldMedia = figure.querySelector('.media-item');
+        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+        const oldMedia = wrapper.querySelector('.media-item');
         
         if (oldMedia) {
             if (oldMedia.tagName === 'VIDEO') {
@@ -156,13 +190,7 @@ class HAGalleryCard extends HTMLElement {
             ? this._createVideoElement(media.url)
             : this._createImageElement(media.url);
 
-        // Add after controls
-        const controls = figure.querySelector('.controls');
-        if (controls) {
-            figure.insertBefore(element, controls.nextSibling);
-        } else {
-            figure.appendChild(element);
-        }
+        wrapper.appendChild(element);
 
         // Only set timer for images, videos will use 'ended' event
         if (media.type !== 'video' && this._isPlaying) {
@@ -251,47 +279,6 @@ class HAGalleryCard extends HTMLElement {
         } else if (this._timer) {
             clearTimeout(this._timer);
         }
-    }
-
-    render() {
-        const style = document.createElement('style');
-        style.textContent = styles;
-
-        const container = document.createElement('div');
-        container.className = 'media-container';
-        
-        const figure = document.createElement('figure');
-        
-        const controls = document.createElement('div');
-        controls.className = 'controls';
-        controls.innerHTML = `
-            <button class="control-button prev">⬅️</button>
-            <button class="control-button play-pause">${this._isPlaying ? '⏸️' : '▶️'}</button>
-            <button class="control-button next">➡️</button>
-        `;
-
-        figure.appendChild(controls);
-        container.appendChild(figure);
-        
-        // Clear the shadow root
-        while (this.shadowRoot.firstChild) {
-            this.shadowRoot.removeChild(this.shadowRoot.firstChild);
-        }
-
-        // Add new elements
-        this.shadowRoot.appendChild(style);
-        this.shadowRoot.appendChild(container);
-
-        // Wait for elements to be in the DOM before adding listeners
-        requestAnimationFrame(() => {
-            const prevButton = this.shadowRoot.querySelector('.prev');
-            const nextButton = this.shadowRoot.querySelector('.next');
-            const playPauseButton = this.shadowRoot.querySelector('.play-pause');
-            
-            if (prevButton) prevButton.addEventListener('click', () => this._previous());
-            if (nextButton) nextButton.addEventListener('click', () => this._next());
-            if (playPauseButton) playPauseButton.addEventListener('click', () => this._togglePlayPause());
-        });
     }
 }
 

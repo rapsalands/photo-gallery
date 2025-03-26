@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gallery Card Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f0f0f0;
+        }
+        .card {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+        }
+        .gallery-heading {
+            text-align: center;
+            font-size: 24px;
+            margin: 0 0 20px 0;
+            color: #333;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 class="gallery-heading">IMAGES TO DISPLAY</h2>
+        <ha-gallery-card id="gallery"></ha-gallery-card>
+    </div>
+    <div class="controls">
+        <h3>Test Controls</h3>
+        <button onclick="updateConfig()">Update Config</button>
+        <button onclick="togglePlay()">Toggle Play/Pause</button>
+    </div>
+    <div>
+        <h3>Current Config:</h3>
+        <pre id="currentConfig"></pre>
+    </div>
+
+    <script>
+        // Define global functions first
+        function updateConfig() {
+            const gallery = document.getElementById('gallery');
+            const config = {
+                source_type: 'media_source',
+                path: '/local/test/images',
+                transition_time: Math.floor(Math.random() * 10) + 1,
+                shuffle: Math.random() > 0.5,
+                fit: ['contain', 'cover', 'fill'][Math.floor(Math.random() * 3)],
+                volume: Math.floor(Math.random() * 100)
+            };
+            gallery.setConfig(config);
+            document.getElementById('currentConfig').textContent = JSON.stringify(config, null, 2);
+        }
+
+        function togglePlay() {
+            const gallery = document.getElementById('gallery');
+            gallery._togglePlayPause();
+        }
+
+        // Mock Home Assistant environment
+        const mockHass = {
+            callWS: async function(params) {
+                console.log('Mock WS call:', params);
+                
+                if (params.type === 'media_source/browse_media') {
+                    return {
+                        media_class: "directory",
+                        media_content_id: "",
+                        title: "Media",
+                        can_expand: true,
+                        children: [
+                            { 
+                                media_content_id: "media-source://media_source/local/sample1.jpg",
+                                media_class: 'image',
+                                mime_type: 'image/jpeg',
+                                title: 'Sample 1',
+                                can_expand: false
+                            },
+                            { 
+                                media_content_id: "media-source://media_source/local/sample2.jpg",
+                                media_class: 'image',
+                                mime_type: 'image/jpeg',
+                                title: 'Sample 2',
+                                can_expand: false
+                            },
+                            { 
+                                media_content_id: "media-source://media_source/local/Photo1.jpg",
+                                media_class: 'image',
+                                mime_type: 'image/jpeg',
+                                title: 'Photo 1',
+                                can_expand: false
+                            },
+                            { 
+                                media_content_id: "media-source://media_source/local/Photo2.jpg",
+                                media_class: 'image',
+                                mime_type: 'image/jpeg',
+                                title: 'Photo 2',
+                                can_expand: false
+                            }
+                        ]
+                    };
+                } else if (params.type === 'media_source/resolve_media') {
+                    const filename = params.media_content_id.split('/').pop();
+                    return {
+                        url: `/test/images/${filename}`
+                    };
+                }
+            }
+        };
+    </script>
+
+    <script type="module">
+        import '../src/ha-gallery-card.js';
+
+        // Initialize gallery when loaded
+        window.addEventListener('load', function() {
+            const gallery = document.getElementById('gallery');
+            
+            // Initial config
+            const config = {
+                source_type: 'media_source',
+                path: '/local/test/images',
+                transition_time: 5,
+                shuffle: false,
+                fit: 'contain',
+                volume: 15
+            };
+
+            // Set config and hass
+            gallery.setConfig(config);
+            gallery.hass = mockHass;
+
+            // Display current config
+            document.getElementById('currentConfig').textContent = JSON.stringify(config, null, 2);
+        });
+    </script>
+</body>
+</html>

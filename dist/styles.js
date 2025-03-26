@@ -6,28 +6,27 @@ export const styles = `
     }
     .media-container {
         width: 100%;
-        background: #000;
-        border: 1px solid #555;
-        padding: 5px;
-        box-sizing: border-box;
-    }
-    figure {
-        margin: 5px;
         position: relative;
         display: flex;
-        align-items: center;
         justify-content: center;
-        min-height: 200px;
+        align-items: center;
+    }
+    .media-wrapper {
+        position: relative;
+        width: 100%;  /* Fixed width */
+        border: 5px solid #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
     .media-item {
-        max-width: 100%;
-        max-height: calc(100vh - 150px);
-        object-fit: contain;
+        width: 100%;  /* Always take full width */
+        height: auto;  /* Height adjusts automatically */
+        object-fit: fill;  /* Stretch to fill */
         display: block;
     }
     video.media-item {
-        width: 100%;
-        height: 100%;
+        aspect-ratio: 16/9;  /* Maintain aspect ratio for videos */
     }
     .controls {
         position: absolute;
@@ -54,14 +53,5 @@ export const styles = `
         border: none;
         color: white;
         font-size: 20px;
-        transition: transform 0.2s;
-    }
-    .control-button:hover {
-        transform: scale(1.1);
-    }
-    figcaption {
-        text-align: center;
-        color: white;
-        padding: 5px 0;
     }
 `;
