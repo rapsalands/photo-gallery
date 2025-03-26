@@ -270,14 +270,25 @@ class HAGalleryCard extends HTMLElement {
 
         container.appendChild(controls);
         
-        this.shadowRoot.innerHTML = '';
+        // Clear the shadow root
+        while (this.shadowRoot.firstChild) {
+            this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+        }
+
+        // Add new elements
         this.shadowRoot.appendChild(style);
         this.shadowRoot.appendChild(container);
 
-        // Add event listeners
-        controls.querySelector('.prev').addEventListener('click', () => this._previous());
-        controls.querySelector('.next').addEventListener('click', () => this._next());
-        controls.querySelector('.play-pause').addEventListener('click', () => this._togglePlayPause());
+        // Wait for elements to be in the DOM before adding listeners
+        requestAnimationFrame(() => {
+            const prevButton = this.shadowRoot.querySelector('.prev');
+            const nextButton = this.shadowRoot.querySelector('.next');
+            const playPauseButton = this.shadowRoot.querySelector('.play-pause');
+            
+            if (prevButton) prevButton.addEventListener('click', () => this._previous());
+            if (nextButton) nextButton.addEventListener('click', () => this._next());
+            if (playPauseButton) playPauseButton.addEventListener('click', () => this._togglePlayPause());
+        });
     }
 }
 
@@ -285,22 +296,33 @@ customElements.define('ha-gallery-card', HAGalleryCard);
 
 // Editor
 class HAGalleryEditor extends HTMLElement {
+    constructor() {
+        super();
+        this._config = {};
+    }
+
     setConfig(config) {
         this._config = {
-            source_type: config.source_type || 'local',
-            path: config.path || '',
-            transition_time: config.transition_time || 5,
-            shuffle: config.shuffle || false,
-            fit: config.fit || 'contain',
-            volume: config.volume || 15
+            source_type: config?.source_type || 'local',
+            path: config?.path || '',
+            transition_time: config?.transition_time || 5,
+            shuffle: Boolean(config?.shuffle),
+            fit: config?.fit || 'contain',
+            volume: Number(config?.volume || 15)
         };
         this.render();
     }
 
     _valueChanged(ev) {
-        const config = ev.detail.value;
+        if (!ev.detail?.value) return;
+        
+        const newConfig = {
+            ...this._config,
+            ...ev.detail.value
+        };
+
         this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: { config },
+            detail: { config: newConfig },
             bubbles: true,
             composed: true
         }));
@@ -309,38 +331,55 @@ class HAGalleryEditor extends HTMLElement {
     render() {
         if (!this._config) return;
 
+        const schema = [
+            { 
+                name: 'source_type',
+                required: true,
+                selector: {
+                    select: {
+                        options: [
+                            { value: 'local', label: 'Local' },
+                            { value: 'media_source', label: 'Media Source' }
+                        ],
+                        mode: 'dropdown'
+                    }
+                }
+            },
+            { 
+                name: 'path',
+                required: true,
+                selector: { text: {} }
+            },
+            {
+                name: 'transition_time',
+                selector: { number: { min: 1, max: 60, mode: 'box' } }
+            },
+            {
+                name: 'shuffle',
+                selector: { boolean: {} }
+            },
+            { 
+                name: 'fit',
+                selector: {
+                    select: {
+                        options: [
+                            { value: 'contain', label: 'Contain' },
+                            { value: 'cover', label: 'Cover' },
+                            { value: 'fill', label: 'Fill' }
+                        ],
+                        mode: 'dropdown'
+                    }
+                }
+            },
+            {
+                name: 'volume',
+                selector: { number: { min: 0, max: 100, mode: 'slider' } }
+            }
+        ];
+
         this.innerHTML = `
             <ha-form
-                .schema=${[
-                    { 
-                        name: 'source_type',
-                        required: true,
-                        selector: {
-                            select: {
-                                options: [
-                                    { value: 'local', label: 'Local' },
-                                    { value: 'media_source', label: 'Media Source' }
-                                ]
-                            }
-                        }
-                    },
-                    { name: 'path', required: true, selector: { text: {} } },
-                    { name: 'transition_time', selector: { number: { min: 1, max: 60 } } },
-                    { name: 'shuffle', selector: { boolean: {} } },
-                    { 
-                        name: 'fit',
-                        selector: {
-                            select: {
-                                options: [
-                                    { value: 'contain', label: 'Contain' },
-                                    { value: 'cover', label: 'Cover' },
-                                    { value: 'fill', label: 'Fill' }
-                                ]
-                            }
-                        }
-                    },
-                    { name: 'volume', selector: { number: { min: 0, max: 100 } } }
-                ]}
+                .schema=${schema}
                 .data=${this._config}
                 @value-changed=${this._valueChanged}
             ></ha-form>
