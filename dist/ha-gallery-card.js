@@ -164,6 +164,14 @@ class HAGalleryCard extends HTMLElement {
         video.playsInline = true;
         video.addEventListener('ended', () => this._next());
         video.addEventListener('error', () => this._next());
+        video.addEventListener('loadedmetadata', () => {
+            // Adjust container height based on video aspect ratio
+            const container = this.shadowRoot.querySelector('.media-container');
+            if (container && video.videoWidth && video.videoHeight) {
+                const aspectRatio = video.videoHeight / video.videoWidth;
+                container.style.height = `${container.offsetWidth * aspectRatio}px`;
+            }
+        });
         if (this._isPlaying) video.play();
         return video;
     }
@@ -174,6 +182,12 @@ class HAGalleryCard extends HTMLElement {
         img.src = url;
         img.style.objectFit = this._config.fit;
         img.addEventListener('load', () => {
+            // Adjust container height based on image aspect ratio
+            const container = this.shadowRoot.querySelector('.media-container');
+            if (container && img.naturalWidth && img.naturalHeight) {
+                const aspectRatio = img.naturalHeight / img.naturalWidth;
+                container.style.height = `${container.offsetWidth * aspectRatio}px`;
+            }
             if (this._isPlaying) this._setTimer();
         });
         img.addEventListener('error', () => this._next());
@@ -227,13 +241,26 @@ class HAGalleryCard extends HTMLElement {
                 position: relative;
                 background: #000;
                 overflow: hidden;
+                padding: 10px;
+                box-sizing: border-box;
             }
             .media-item {
                 position: absolute;
-                top: 0;
-                left: 0;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                max-width: 100%;
+                max-height: 100%;
+                width: auto;
+                height: auto;
+                object-fit: scale-down;
+                border-radius: 4px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            video.media-item {
                 width: 100%;
                 height: 100%;
+                object-fit: contain;
             }
             .controls {
                 position: absolute;
@@ -249,6 +276,7 @@ class HAGalleryCard extends HTMLElement {
                 opacity: 0;
                 transition: opacity 0.3s;
                 z-index: 1;
+                border-radius: 4px 4px 0 0;
             }
             :host(:hover) .controls {
                 opacity: 1;
@@ -260,6 +288,21 @@ class HAGalleryCard extends HTMLElement {
                 border: none;
                 color: white;
                 font-size: 20px;
+                transition: transform 0.2s;
+            }
+            .control-button:hover {
+                transform: scale(1.1);
+            }
+            .media-container::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 4px;
+                pointer-events: none;
             }
         `;
 
