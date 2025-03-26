@@ -141,8 +141,8 @@ class HAGalleryCard extends HTMLElement {
         if (!this._mediaList.length) return;
 
         const media = this._mediaList[this._currentIndex];
-        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
-        const oldMedia = wrapper.querySelector('.media-item');
+        const container = this.shadowRoot.querySelector('.media-container');
+        const oldMedia = container.querySelector('.media-item');
         
         if (oldMedia) {
             if (oldMedia.tagName === 'VIDEO') {
@@ -156,7 +156,7 @@ class HAGalleryCard extends HTMLElement {
             ? this._createVideoElement(media.url)
             : this._createImageElement(media.url);
 
-        wrapper.appendChild(element);
+        container.appendChild(element);
 
         // Only set timer for images, videos will use 'ended' event
         if (media.type !== 'video' && this._isPlaying) {
@@ -254,9 +254,6 @@ class HAGalleryCard extends HTMLElement {
         const container = document.createElement('div');
         container.className = 'media-container';
         
-        const wrapper = document.createElement('div');
-        wrapper.className = 'media-wrapper';
-        
         const controls = document.createElement('div');
         controls.className = 'controls';
         controls.innerHTML = `
@@ -265,7 +262,6 @@ class HAGalleryCard extends HTMLElement {
             <button class="control-button next">➡️</button>
         `;
 
-        container.appendChild(wrapper);
         container.appendChild(controls);
         
         // Clear the shadow root
