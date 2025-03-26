@@ -182,7 +182,7 @@ if (!customElements.get('ha-gallery-card')) {
                     try {
                         if (source.type === 'media_source') {
                             // Handle media source browsing
-                            const mediaSourceId = source.path.split('media-source://media_source/')[1];
+                            const mediaSourceId = source.path.replace('/local/', '');  // Remove /local/ prefix
                             console.debug("Browsing media source:", mediaSourceId);
                             
                             const response = await this._hass.callWS({
@@ -515,6 +515,10 @@ if (!customElements.get('ha-gallery-card')) {
                     {
                         type: 'local',
                         path: '/local/photos'
+                    },
+                    {
+                        type: 'media_source',
+                        path: '/local/gallery'
                     }
                 ],
                 transition_interval: 5,

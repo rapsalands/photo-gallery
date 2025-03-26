@@ -92,7 +92,7 @@ media_sources:
   - type: local
     path: /local/photos
   - type: media_source
-    path: media-source://media_source/local/gallery
+    path: /local/gallery
   - type: local
     path: /local/vacation
 transition_interval: 5
@@ -111,8 +111,8 @@ Currently supported media source types:
    - Note: This maps to your Home Assistant's `www` directory
 
 2. `media_source`: Access files through Home Assistant's Media Source integration
-   - Path format: `media-source://media_source/local/path/to/files`
-   - Example: `media-source://media_source/local/gallery`
+   - Path format: `/local/path/to/files` (same as local type)
+   - Example: `/local/gallery`
    - Note: This uses Home Assistant's built-in media browser
 
 ### Supported File Types
@@ -130,8 +130,9 @@ Currently supported media source types:
    - For media sources, check the path in Media Browser
 
 2. "Invalid path format"
-   - Local paths must start with `/local/`
-   - Media source paths must start with `media-source://media_source/`
+   - All paths must start with `/local/`
+   - The path after `/local/` maps to www directory for local type
+   - The path after `/local/` maps to media source for media_source type
 
 3. Images not displaying
    - Check browser console for errors
