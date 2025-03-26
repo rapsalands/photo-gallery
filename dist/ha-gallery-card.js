@@ -262,21 +262,21 @@ class HAGalleryCard extends HTMLElement {
                 position: relative;
                 background: #000;
                 overflow: hidden;
-                padding: 20px;
+                padding: 12px;
                 box-sizing: border-box;
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 4px;
             }
             .media-item {
                 position: absolute;
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                max-width: calc(100% - 40px);  /* Account for padding */
-                max-height: calc(100% - 40px);  /* Account for padding */
+                max-width: calc(100% - 24px);  /* Account for padding */
+                max-height: calc(100% - 24px);  /* Account for padding */
                 width: auto;
                 height: auto;
                 object-fit: scale-down;
-                border-radius: 8px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             }
             video.media-item {
                 width: 100%;
@@ -285,9 +285,9 @@ class HAGalleryCard extends HTMLElement {
             }
             .controls {
                 position: absolute;
-                top: 20px;  /* Match padding */
-                left: 20px;  /* Match padding */
-                right: 20px;  /* Match padding */
+                top: 12px;  /* Match padding */
+                left: 12px;  /* Match padding */
+                right: 12px;  /* Match padding */
                 padding: 10px;
                 background: rgba(0,0,0,0.5);
                 color: white;
@@ -297,7 +297,7 @@ class HAGalleryCard extends HTMLElement {
                 opacity: 0;
                 transition: opacity 0.3s;
                 z-index: 1;
-                border-radius: 8px 8px 0 0;
+                border-radius: 4px;
             }
             :host(:hover) .controls {
                 opacity: 1;
@@ -313,18 +313,6 @@ class HAGalleryCard extends HTMLElement {
             }
             .control-button:hover {
                 transform: scale(1.1);
-            }
-            .media-container::before {
-                content: '';
-                position: absolute;
-                top: 20px;
-                left: 20px;
-                right: 20px;
-                bottom: 20px;
-                border: 2px solid rgba(255,255,255,0.2);
-                border-radius: 8px;
-                pointer-events: none;
-                box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
             }
         `;
 
