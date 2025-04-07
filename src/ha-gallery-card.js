@@ -1,8 +1,10 @@
+console.log('HA Gallery Card module loaded');
 import { styles } from './styles.js';
 
 class HAGalleryCard extends HTMLElement {
     constructor() {
         super();
+        console.log('HA Gallery Card constructor called');
         this.attachShadow({ mode: 'open' });
         this._mediaList = [];
         this._currentIndex = 0;
@@ -334,8 +336,6 @@ class HAGalleryCard extends HTMLElement {
     }
 }
 
-customElements.define('ha-gallery-card', HAGalleryCard);
-
 // Editor
 class HAGalleryEditor extends HTMLElement {
     constructor() {
@@ -429,6 +429,9 @@ class HAGalleryEditor extends HTMLElement {
     }
 }
 
+console.log('Registering ha-gallery-card custom element');
+customElements.define('ha-gallery-card', HAGalleryCard);
+console.log('Registering ha-gallery-editor custom element');
 customElements.define('ha-gallery-editor', HAGalleryEditor);
 
 window.customCards = window.customCards || [];
@@ -438,3 +441,4 @@ window.customCards.push({
     preview: true,
     description: 'A card that displays a gallery of images and videos'
 });
+console.log('HA Gallery Card registration complete');
