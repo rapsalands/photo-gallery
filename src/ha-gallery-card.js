@@ -43,6 +43,11 @@ class HAGalleryCard extends HTMLElement {
         if (!config.source_type || !['local', 'media_source'].includes(config.source_type)) {
             throw new Error('source_type must be either "local" or "media_source"');
         }
+        
+        const validFitValues = ['contain', 'cover', 'fill'];
+        if (config.fit && !validFitValues.includes(config.fit)) {
+            console.warn(`Invalid fit value "${config.fit}". Using "contain" instead. Valid values are: ${validFitValues.join(', ')}`);
+        }
 
         // Create a new config object with all properties
         this._config = {
@@ -50,67 +55,109 @@ class HAGalleryCard extends HTMLElement {
             path: config.path,
             transition_time: config.transition_time || 5,
             shuffle: Boolean(config.shuffle),
-            fit: config.fit || 'contain',
+            fit: validFitValues.includes(config.fit) ? config.fit : 'contain',
             volume: Number(config.volume || 15)
         };
         
+        console.log('Card configuration:', this._config);
         this.render();
     }
 
     set hass(hass) {
+        console.log('hass setter called, current config:', this._config);
+        console.log('Current media list length:', this._mediaList.length);
         this._hass = hass;
         if (!this._mediaList.length && this._config) {
+            console.log('Initializing media loading...');
             this._loadMedia();
         }
     }
 
     async _loadMedia() {
         try {
+            console.log('_loadMedia called with config:', this._config);
             let mediaList = [];
 
             if (this._config.source_type === 'media_source') {
+                console.log('Loading from media source...');
                 mediaList = await this._loadFromMediaSource();
             } else {
+                console.log('Loading from local source...');
                 mediaList = await this._loadFromLocal();
             }
 
+            console.log('Loaded media list:', mediaList);
+
             if (mediaList && mediaList.length > 0) {
                 this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
+                console.log('Final media list:', this._mediaList);
                 this._showMedia();
             } else {
                 console.warn('No media found in the specified path');
+                // Try to show error in the UI
+                const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+                if (wrapper) {
+                    const error = document.createElement('div');
+                    error.style.color = 'white';
+                    error.style.padding = '20px';
+                    error.textContent = 'No media found. Please check your path configuration.';
+                    wrapper.appendChild(error);
+                }
             }
         } catch (error) {
             console.error('Error loading media:', error);
+            // Show error in the UI
+            const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+            if (wrapper) {
+                const error = document.createElement('div');
+                error.style.color = 'white';
+                error.style.padding = '20px';
+                error.textContent = 'Error loading media. Please check browser console for details.';
+                wrapper.appendChild(error);
+            }
         }
     }
 
     async _loadFromMediaSource() {
         try {
+            // Remove leading slash if present
+            const cleanPath = this._config.path.replace(/^\/+/, '');
+            console.log('Loading media from path:', cleanPath);
+
             // Ensure path is in correct format for media-source
-            const mediaContentId = this._config.path.startsWith('media-source://')
-                ? this._config.path
-                : `media-source://media_source/${this._config.path.replace(/^\/+/, '')}`;
+            const mediaContentId = cleanPath.startsWith('media-source://')
+                ? cleanPath
+                : `media-source://media_source/${cleanPath}`;
+            
+            console.log('Using media content ID:', mediaContentId);
 
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
                 media_content_id: mediaContentId
             });
 
+            console.log('Media source response:', response);
+
             if (response && response.children) {
                 return Promise.all(response.children.map(async (item) => {
+                    console.log('Processing item:', item);
                     if (item.media_class === 'image') {
                         const resolveResponse = await this._hass.callWS({
                             type: 'media_source/resolve_media',
                             media_content_id: item.media_content_id
                         });
+                        console.log('Resolved media:', resolveResponse);
                         return {
                             url: resolveResponse.url,
                             type: 'image'
                         };
                     }
                     return null;
-                })).then(items => items.filter(item => item !== null));
+                })).then(items => {
+                    const filteredItems = items.filter(item => item !== null);
+                    console.log('Final media list:', filteredItems);
+                    return filteredItems;
+                });
             }
             return [];
         } catch (error) {
