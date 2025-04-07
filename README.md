@@ -45,8 +45,8 @@ resources:
 
 ```yaml
 type: custom:ha-gallery-card
-source_type: local     # 'local' or 'media_source'
-path: /local/photos
+source_type: media_source  # 'local' or 'media_source'
+path: local/photos        # Path relative to your media directory
 transition_time: 5
 shuffle: false
 fit: contain
@@ -57,7 +57,7 @@ volume: 15
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| source_type | string | local | Type of media source ('local' or 'media_source') |
+| source_type | string | media_source | Type of media source ('local' or 'media_source') |
 | path | string | Required | Path to media files |
 | transition_time | number | 5 | Time in seconds between transitions |
 | shuffle | boolean | false | Enable random playback |
@@ -66,49 +66,43 @@ volume: 15
 
 ### Source Types and Paths
 
-1. Local files (www directory):
+1. Media Source (Recommended):
 ```yaml
-source_type: local
-path: /local/photos    # Points to www/photos directory
+source_type: media_source
+path: local/photos       # Points to photos directory in your media folder
 ```
 
-2. Media Source:
+2. Local files (www directory):
 ```yaml
-# Browse root of media sources
-source_type: media_source
-path: /local           # Shows all media sources
-
-# Browse specific directory
-source_type: media_source
-path: /local/pictures  # Shows contents of "pictures" directory
-
-# Browse specific media source
-source_type: media_source
-path: /local/media_source/local/gallery  # Shows contents of gallery in local media source
+source_type: local
+path: /local/photos      # Points to www/photos directory
 ```
 
 The path is processed as follows:
-- For `local` source type: `/local/photos` points to `www/photos` directory
-- For `media_source` type:
-  - `/local` or empty: Shows all media sources
-  - `/local/directory`: Shows contents of "directory"
-  - `/local/media_source/source/path`: Shows contents of specific media source path
+- For `media_source` type (recommended):
+  - Just specify the path relative to your media directory
+  - Example: `local/photos` for photos in your local media folder
+  - No need to include `media-source://media_source/` prefix
+
+- For `local` source type:
+  - Use `/local/` prefix to point to files in your `www` directory
+  - Example: `/local/photos` points to `www/photos` directory
 
 ### Example Configurations
 
-Basic local gallery:
-```yaml
-type: custom:ha-gallery-card
-source_type: local
-path: /local/photos
-transition_time: 5
-```
-
-Media source gallery with options:
+Basic media source gallery:
 ```yaml
 type: custom:ha-gallery-card
 source_type: media_source
-path: /local/gallery
+path: local/photos
+transition_time: 5
+```
+
+Gallery with options:
+```yaml
+type: custom:ha-gallery-card
+source_type: media_source
+path: local/vacation_photos
 transition_time: 8
 shuffle: true
 fit: cover
@@ -121,13 +115,13 @@ type: grid
 columns: 2
 cards:
   - type: custom:ha-gallery-card
-    source_type: local
-    path: /local/family_photos
+    source_type: media_source
+    path: local/family_photos
     transition_time: 5
     fit: contain
   - type: custom:ha-gallery-card
     source_type: media_source
-    path: /local/vacation_videos
+    path: local/vacation_photos
     transition_time: 10
     fit: cover
 ```
@@ -140,7 +134,7 @@ cards:
 ## Troubleshooting
 
 1. No media showing
-   - Check path is correct
+   - Check that your path is correct and relative to your media directory
    - Verify files exist in specified location
    - Check browser console for errors
 

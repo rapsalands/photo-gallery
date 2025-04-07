@@ -28,7 +28,7 @@ class HAGalleryCard extends HTMLElement {
     static getStubConfig() {
         return {
             source_type: 'media_source',
-            path: 'media-source://media_source/local/photos',
+            path: 'local/photos',
             transition_time: 5,
             shuffle: false,
             fit: 'contain',
@@ -87,11 +87,10 @@ class HAGalleryCard extends HTMLElement {
 
     async _loadFromMediaSource() {
         try {
-            // Ensure path is in correct format
-            let mediaContentId = this._config.path;
-            if (!mediaContentId.startsWith('media-source://')) {
-                mediaContentId = `media-source://media_source/${mediaContentId.replace(/^\/+/, '')}`;
-            }
+            // Ensure path is in correct format for media-source
+            const mediaContentId = this._config.path.startsWith('media-source://')
+                ? this._config.path
+                : `media-source://media_source/${this._config.path.replace(/^\/+/, '')}`;
 
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
