@@ -96,43 +96,50 @@ class HAGalleryCard extends HTMLElement {
                 this._showMedia();
             } else {
                 console.warn('No media found in the specified path');
-                // Try to show error in the UI
-                const wrapper = this.shadowRoot.querySelector('.media-wrapper');
-                if (wrapper) {
-                    const error = document.createElement('div');
-                    error.style.color = 'white';
-                    error.style.padding = '20px';
-                    error.textContent = 'No media found. Please check your path configuration.';
-                    wrapper.appendChild(error);
-                }
+                this._showError('No media found in the specified path. Please check your configuration.');
             }
         } catch (error) {
             console.error('Error loading media:', error);
-            // Show error in the UI
-            const wrapper = this.shadowRoot.querySelector('.media-wrapper');
-            if (wrapper) {
-                const error = document.createElement('div');
-                error.style.color = 'white';
-                error.style.padding = '20px';
-                error.textContent = 'Error loading media. Please check browser console for details.';
-                wrapper.appendChild(error);
+            let errorMessage = 'Error loading media. ';
+            if (error.message) {
+                errorMessage += error.message;
+            } else {
+                errorMessage += 'Please check browser console for details.';
             }
+            this._showError(errorMessage);
+        }
+    }
+
+    _showError(message) {
+        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+        if (wrapper) {
+            // Clear any existing content
+            while (wrapper.firstChild) {
+                wrapper.removeChild(wrapper.firstChild);
+            }
+            const error = document.createElement('div');
+            error.style.color = 'white';
+            error.style.padding = '20px';
+            error.style.textAlign = 'center';
+            error.textContent = message;
+            wrapper.appendChild(error);
         }
     }
 
     async _loadFromMediaSource() {
         try {
-            // Remove leading slash if present
+            // Remove leading slash if present and clean the path
             const cleanPath = this._config.path.replace(/^\/+/, '');
             console.log('Loading media from path:', cleanPath);
 
-            // Ensure path is in correct format for media-source
-            const mediaContentId = cleanPath.startsWith('media-source://')
-                ? cleanPath
+            // For media_source type, we need to use the full media source identifier
+            const mediaContentId = cleanPath.startsWith('media-source://') 
+                ? cleanPath 
                 : `media-source://media_source/${cleanPath}`;
-            
+
             console.log('Using media content ID:', mediaContentId);
 
+            // First, try to browse the media
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
                 media_content_id: mediaContentId
@@ -143,16 +150,21 @@ class HAGalleryCard extends HTMLElement {
             if (response && response.children) {
                 return Promise.all(response.children.map(async (item) => {
                     console.log('Processing item:', item);
-                    if (item.media_class === 'image') {
-                        const resolveResponse = await this._hass.callWS({
-                            type: 'media_source/resolve_media',
-                            media_content_id: item.media_content_id
-                        });
-                        console.log('Resolved media:', resolveResponse);
-                        return {
-                            url: resolveResponse.url,
-                            type: 'image'
-                        };
+                    if (item.media_class === 'image' || item.media_class === 'video') {
+                        try {
+                            const resolveResponse = await this._hass.callWS({
+                                type: 'media_source/resolve_media',
+                                media_content_id: item.media_content_id
+                            });
+                            console.log('Resolved media:', resolveResponse);
+                            return {
+                                url: resolveResponse.url,
+                                type: item.media_class
+                            };
+                        } catch (resolveError) {
+                            console.error('Error resolving media item:', resolveError);
+                            return null;
+                        }
                     }
                     return null;
                 })).then(items => {
@@ -164,7 +176,7 @@ class HAGalleryCard extends HTMLElement {
             return [];
         } catch (error) {
             console.error('Error loading from media source:', error);
-            return [];
+            throw error; // Re-throw to show in UI
         }
     }
 
