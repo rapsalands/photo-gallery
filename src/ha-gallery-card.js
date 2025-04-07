@@ -10,6 +10,8 @@ class HAGalleryCard extends HTMLElement {
         this._currentIndex = 0;
         this._isPlaying = true;
         this._timer = null;
+        this._preloadedImages = new Map(); // Cache for preloaded images
+        this._resolvedUrls = new Map(); // Cache for resolved URLs
     }
 
     static get properties() {
@@ -94,6 +96,7 @@ class HAGalleryCard extends HTMLElement {
                 this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
                 console.log('Final media list:', this._mediaList);
                 this._showMedia();
+                this._preloadNextImage();
             } else {
                 console.warn('No media found in the specified path');
                 this._showError('No media found in the specified path. Please check your configuration.');
@@ -128,18 +131,15 @@ class HAGalleryCard extends HTMLElement {
 
     async _loadFromMediaSource() {
         try {
-            // Remove leading slash if present and clean the path
             const cleanPath = this._config.path.replace(/^\/+/, '');
             console.log('Loading media from path:', cleanPath);
 
-            // For media_source type, we need to use the full media source identifier
             const mediaContentId = cleanPath.startsWith('media-source://') 
                 ? cleanPath 
                 : `media-source://media_source/${cleanPath}`;
 
             console.log('Using media content ID:', mediaContentId);
 
-            // First, try to browse the media
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
                 media_content_id: mediaContentId
@@ -148,18 +148,28 @@ class HAGalleryCard extends HTMLElement {
             console.log('Media source response:', response);
 
             if (response && response.children) {
-                return Promise.all(response.children.map(async (item) => {
+                const mediaItems = await Promise.all(response.children.map(async (item) => {
                     console.log('Processing item:', item);
                     if (item.media_class === 'image' || item.media_class === 'video') {
                         try {
-                            const resolveResponse = await this._hass.callWS({
-                                type: 'media_source/resolve_media',
-                                media_content_id: item.media_content_id
-                            });
-                            console.log('Resolved media:', resolveResponse);
+                            // Check if we already have the resolved URL cached
+                            let resolvedUrl = this._resolvedUrls.get(item.media_content_id);
+                            if (!resolvedUrl) {
+                                const resolveResponse = await this._hass.callWS({
+                                    type: 'media_source/resolve_media',
+                                    media_content_id: item.media_content_id
+                                });
+                                resolvedUrl = resolveResponse.url;
+                                this._resolvedUrls.set(item.media_content_id, resolvedUrl);
+                                console.log('Resolved and cached new URL:', resolvedUrl);
+                            } else {
+                                console.log('Using cached URL for:', item.media_content_id);
+                            }
+                            
                             return {
-                                url: resolveResponse.url,
-                                type: item.media_class
+                                url: resolvedUrl,
+                                type: item.media_class,
+                                contentId: item.media_content_id
                             };
                         } catch (resolveError) {
                             console.error('Error resolving media item:', resolveError);
@@ -167,16 +177,16 @@ class HAGalleryCard extends HTMLElement {
                         }
                     }
                     return null;
-                })).then(items => {
-                    const filteredItems = items.filter(item => item !== null);
-                    console.log('Final media list:', filteredItems);
-                    return filteredItems;
-                });
+                }));
+                
+                const filteredItems = mediaItems.filter(item => item !== null);
+                console.log('Final media list:', filteredItems);
+                return filteredItems;
             }
             return [];
         } catch (error) {
             console.error('Error loading from media source:', error);
-            throw error; // Re-throw to show in UI
+            throw error;
         }
     }
 
@@ -252,9 +262,22 @@ class HAGalleryCard extends HTMLElement {
             oldMedia.remove();
         }
 
-        const element = media.type === 'video' 
-            ? this._createVideoElement(media.url)
-            : this._createImageElement(media.url);
+        let element;
+        if (media.type === 'video') {
+            element = this._createVideoElement(media.url);
+        } else {
+            // Check if we have a preloaded image
+            const preloadedImage = this._preloadedImages.get(media.url);
+            if (preloadedImage && preloadedImage.complete) {
+                console.log('Using preloaded image:', media.url);
+                element = preloadedImage.cloneNode(true);
+                element.className = 'media-item';
+                element.style.objectFit = this._config.fit;
+            } else {
+                console.log('Creating new image element:', media.url);
+                element = this._createImageElement(media.url);
+            }
+        }
 
         wrapper.appendChild(element);
 
@@ -262,6 +285,9 @@ class HAGalleryCard extends HTMLElement {
         if (media.type !== 'video' && this._isPlaying) {
             this._setTimer();
         }
+        
+        // Preload next image
+        this._preloadNextImage();
     }
 
     _createVideoElement(url) {
@@ -344,6 +370,20 @@ class HAGalleryCard extends HTMLElement {
             this._setTimer();
         } else if (this._timer) {
             clearTimeout(this._timer);
+        }
+    }
+
+    _preloadNextImage() {
+        if (this._mediaList.length <= 1) return;
+        
+        const nextIndex = (this._currentIndex + 1) % this._mediaList.length;
+        const nextMedia = this._mediaList[nextIndex];
+        
+        if (nextMedia && nextMedia.type === 'image' && !this._preloadedImages.has(nextMedia.url)) {
+            console.log('Preloading next image:', nextMedia.url);
+            const img = new Image();
+            img.src = nextMedia.url;
+            this._preloadedImages.set(nextMedia.url, img);
         }
     }
 }
