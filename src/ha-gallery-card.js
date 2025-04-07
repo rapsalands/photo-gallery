@@ -12,6 +12,8 @@ class HAGalleryCard extends HTMLElement {
         this._timer = null;
         this._preloadedImages = new Map(); // Cache for preloaded images
         this._resolvedUrls = new Map(); // Cache for resolved URLs
+        this._urlCacheTimestamps = new Map(); // Timestamps for URL cache entries
+        this._maxCacheAge = 3600000; // 1 hour in milliseconds
     }
 
     static get properties() {
@@ -40,6 +42,14 @@ class HAGalleryCard extends HTMLElement {
         };
     }
 
+    _clearCaches() {
+        console.log('Clearing media caches');
+        this._preloadedImages.clear();
+        this._resolvedUrls.clear();
+        this._urlCacheTimestamps.clear();
+        this._mediaList = [];
+    }
+
     setConfig(config) {
         if (!config.path) {
             throw new Error('Please define path');
@@ -51,6 +61,11 @@ class HAGalleryCard extends HTMLElement {
         const validFitValues = ['contain', 'cover', 'fill'];
         if (config.fit && !validFitValues.includes(config.fit)) {
             console.warn(`Invalid fit value "${config.fit}". Using "contain" instead. Valid values are: ${validFitValues.join(', ')}`);
+        }
+
+        // Clear caches if path or source type changes
+        if (this._config && (this._config.path !== config.path || this._config.source_type !== config.source_type)) {
+            this._clearCaches();
         }
 
         // Create a new config object with all properties
@@ -152,20 +167,7 @@ class HAGalleryCard extends HTMLElement {
                     console.log('Processing item:', item);
                     if (item.media_class === 'image' || item.media_class === 'video') {
                         try {
-                            // Check if we already have the resolved URL cached
-                            let resolvedUrl = this._resolvedUrls.get(item.media_content_id);
-                            if (!resolvedUrl) {
-                                const resolveResponse = await this._hass.callWS({
-                                    type: 'media_source/resolve_media',
-                                    media_content_id: item.media_content_id
-                                });
-                                resolvedUrl = resolveResponse.url;
-                                this._resolvedUrls.set(item.media_content_id, resolvedUrl);
-                                console.log('Resolved and cached new URL:', resolvedUrl);
-                            } else {
-                                console.log('Using cached URL for:', item.media_content_id);
-                            }
-                            
+                            const resolvedUrl = await this._getResolvedUrl(item);
                             return {
                                 url: resolvedUrl,
                                 type: item.media_class,
@@ -188,6 +190,31 @@ class HAGalleryCard extends HTMLElement {
             console.error('Error loading from media source:', error);
             throw error;
         }
+    }
+
+    async _getResolvedUrl(item) {
+        // Check if we have a cached URL that hasn't expired
+        const cachedUrl = this._resolvedUrls.get(item.media_content_id);
+        const timestamp = this._urlCacheTimestamps.get(item.media_content_id);
+        const now = Date.now();
+
+        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
+            console.log('Using cached URL for:', item.media_content_id);
+            return cachedUrl;
+        }
+
+        // Resolve new URL
+        console.log('Resolving new URL for:', item.media_content_id);
+        const resolveResponse = await this._hass.callWS({
+            type: 'media_source/resolve_media',
+            media_content_id: item.media_content_id
+        });
+
+        const resolvedUrl = resolveResponse.url;
+        this._resolvedUrls.set(item.media_content_id, resolvedUrl);
+        this._urlCacheTimestamps.set(item.media_content_id, now);
+        
+        return resolvedUrl;
     }
 
     async _loadFromLocal() {
