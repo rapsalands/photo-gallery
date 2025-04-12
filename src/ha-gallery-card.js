@@ -16,6 +16,7 @@ class HAGalleryCard extends HTMLElement {
         this._maxCacheAge = 3600000; // 1 hour in milliseconds
     }
 
+    
     static get properties() {
         return {
             _config: { type: Object },
