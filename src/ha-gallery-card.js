@@ -32,6 +32,7 @@ class HAGalleryCard extends HTMLElement {
         return document.createElement('ha-gallery-editor');
     }
 
+    // Returns a stub configuration for testing purposes
     static getStubConfig() {
         return {
             source_type: 'media_source',
