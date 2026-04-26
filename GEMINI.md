@@ -51,9 +51,8 @@ There is currently no automated build or bundling process (e.g., Webpack or Roll
 ## Directory Structure
 
 - `src/`: Contains the primary source code.
-    - `ha-gallery-card.js`: Main logic and component registration.
-    - `styles.js`: Component styles.
-- `dist/`: Contains the files served to Home Assistant (mirrors `src/`).
+    - `ha-gallery-card.js`: Main logic, component registration, and inlined styles (single-file HACS plugin).
+- `dist/`: Contains the production-ready standalone file.
 - `test/`: Local testing environment.
     - `server.js`: Simple Node.js static server.
     - `index.html`: Test harness with mock HA environment.
@@ -79,9 +78,10 @@ To verify the fixes for background audio and video transitions, follow these ste
 2.  Wait for the gallery to transition from a **Video** to an **Image**.
 3.  **Expected Result:** As soon as the Image is visible, the Video audio must be completely silent. (Fixes the issue where audio from the previous video "leaks" into the next image).
 
-### 3. Video Completion Test
-1.  Configure a Video that is longer than the `transition_time` (e.g., a 10s video with a 5s transition setting).
-2.  **Expected Result:** The card should **not** transition while the video is playing. It must wait for the video to finish entirely before showing the next item.
+### 3. Video Completion & Delay Test
+1.  Configure a Video and set `transition_time` to 5 seconds.
+2.  **Action:** Watch the video until it reaches the end.
+3.  **Expected Result:** The gallery must **wait** for an additional 5 seconds after the video finishes before showing the next item. (Ensures a smooth transition instead of an immediate skip).
 
 ### 4. Continuous Shuffle Test
 1.  Enable `shuffle: true`.
