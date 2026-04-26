@@ -300,12 +300,26 @@ class HAGalleryCard extends HTMLElement {
         video.style.objectFit = this._config.fit;
         video.controls = true;
         video.playsInline = true;
+        video.autoplay = true;
+        video.muted = true; // Required for autoplay in most browsers
+        
         video.addEventListener('ended', () => {
             if (this._isPlaying) {
                 this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
             }
         });
-        video.addEventListener('error', () => this._next());
+
+        video.addEventListener('error', () => {
+            console.error('[HA Gallery] Video playback error');
+            this._next();
+        });
+
+        if (this._isPlaying && this._isPageVisible && this._isIntersecting) {
+            video.play().catch(err => {
+                console.warn('[HA Gallery] Autoplay blocked or failed:', err);
+            });
+        }
+        
         return video;
     }
 
