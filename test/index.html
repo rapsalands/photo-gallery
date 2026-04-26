@@ -114,11 +114,23 @@
                                 mime_type: 'image/jpeg',
                                 title: 'Photo 2',
                                 can_expand: false
+                            },
+                            { 
+                                media_content_id: "media-source://media_source/local/Video1.mp4",
+                                media_class: 'video',
+                                mime_type: 'video/mp4',
+                                title: 'Video 1',
+                                can_expand: false
                             }
                         ]
                     };
                 } else if (params.type === 'media_source/resolve_media') {
                     const filename = params.media_content_id.split('/').pop();
+                    if (filename.endsWith('.mp4')) {
+                        return {
+                            url: 'https://www.w3schools.com/html/mov_bbb.mp4'
+                        };
+                    }
                     return {
                         url: `/test/images/${filename}`
                     };

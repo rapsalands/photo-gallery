@@ -7,26 +7,30 @@ export const styles = `
     .media-container {
         width: 100%;
         position: relative;
+        aspect-ratio: 16/9;
+        background: #000;
         display: flex;
         justify-content: center;
         align-items: center;
     }
     .media-wrapper {
         position: relative;
-        width: 100%;  /* Fixed width */
-        border: 5px solid #000;
+        width: 100%;
+        height: 100%;
         display: flex;
         justify-content: center;
         align-items: center;
     }
     .media-item {
-        width: 100%;  /* Always take full width */
-        height: auto;  /* Height adjusts automatically */
-        object-fit: fill;  /* Stretch to fill */
-        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        object-fit: contain;
     }
     video.media-item {
-        aspect-ratio: 16/9;  /* Maintain aspect ratio for videos */
+        width: 100%;
+        height: 100%;
     }
     .controls {
         position: absolute;

@@ -14,6 +14,7 @@ class HAGalleryCard extends HTMLElement {
         this._resolvedUrls = new Map(); // Cache for resolved URLs
         this._urlCacheTimestamps = new Map(); // Timestamps for URL cache entries
         this._maxCacheAge = 3600000; // 1 hour in milliseconds
+        this._isLoading = false;
     }
 
     static get properties() {
@@ -64,11 +65,8 @@ class HAGalleryCard extends HTMLElement {
             console.warn(`Invalid fit value "${config.fit}". Using "contain" instead. Valid values are: ${validFitValues.join(', ')}`);
         }
 
-        // Clear caches if path or source type changes
-        if (this._config && (this._config.path !== config.path || this._config.source_type !== config.source_type)) {
-            this._clearCaches();
-        }
-
+        const oldConfig = this._config;
+        
         // Create a new config object with all properties
         this._config = {
             source_type: config.source_type,
@@ -78,31 +76,48 @@ class HAGalleryCard extends HTMLElement {
             fit: validFitValues.includes(config.fit) ? config.fit : 'contain',
             volume: Number(config.volume || 15)
         };
+
+        // If path or source type changed, clear caches and reload
+        if (oldConfig && (oldConfig.path !== this._config.path || oldConfig.source_type !== this._config.source_type)) {
+            this._clearCaches();
+            if (this._hass) this._loadMedia();
+        } else if (oldConfig && oldConfig.shuffle !== this._config.shuffle) {
+            // If only shuffle changed, re-order the current list
+            if (this._mediaList.length > 0) {
+                if (this._config.shuffle) {
+                    this._mediaList = this._shuffleArray(this._mediaList);
+                } else {
+                    // We don't have the original order unless we re-load
+                    this._loadMedia();
+                }
+            }
+        }
         
-        console.log('Card configuration:', this._config);
+        console.log('Card configuration updated:', this._config);
         this.render();
     }
 
     set hass(hass) {
-        console.log('hass setter called, current config:', this._config);
-        console.log('Current media list length:', this._mediaList.length);
+        const oldHass = this._hass;
         this._hass = hass;
+        
+        // Initial load
         if (!this._mediaList.length && this._config) {
-            console.log('Initializing media loading...');
             this._loadMedia();
         }
     }
 
     async _loadMedia() {
+        if (this._isLoading) return;
+        this._isLoading = true;
+        
         try {
-            console.log('_loadMedia called with config:', this._config);
+            console.log('_loadMedia called');
             let mediaList = [];
 
             if (this._config.source_type === 'media_source') {
-                console.log('Loading from media source...');
                 mediaList = await this._loadFromMediaSource();
             } else {
-                console.log('Loading from local source...');
                 mediaList = await this._loadFromLocal();
             }
 
@@ -110,118 +125,92 @@ class HAGalleryCard extends HTMLElement {
 
             if (mediaList && mediaList.length > 0) {
                 this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
-                console.log('Final media list:', this._mediaList);
+                this._currentIndex = 0;
                 this._showMedia();
-                this._preloadNextImage();
             } else {
-                console.warn('No media found in the specified path');
-                this._showError('No media found in the specified path. Please check your configuration.');
+                this._mediaList = [];
+                this._showError('No media found in the specified path.');
             }
         } catch (error) {
             console.error('Error loading media:', error);
-            let errorMessage = 'Error loading media. ';
-            if (error.message) {
-                errorMessage += error.message;
-            } else {
-                errorMessage += 'Please check browser console for details.';
-            }
-            this._showError(errorMessage);
-        }
-    }
-
-    _showError(message) {
-        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
-        if (wrapper) {
-            // Clear any existing content
-            while (wrapper.firstChild) {
-                wrapper.removeChild(wrapper.firstChild);
-            }
-            const error = document.createElement('div');
-            error.style.color = 'white';
-            error.style.padding = '20px';
-            error.style.textAlign = 'center';
-            error.textContent = message;
-            wrapper.appendChild(error);
+            this._showError('Error loading media: ' + (error.message || 'Check console'));
+        } finally {
+            this._isLoading = false;
         }
     }
 
     async _loadFromMediaSource() {
         try {
             const cleanPath = this._config.path.replace(/^\/+/, '');
-            console.log('Loading media from path:', cleanPath);
-
             const mediaContentId = cleanPath.startsWith('media-source://') 
                 ? cleanPath 
                 : `media-source://media_source/${cleanPath}`;
-
-            console.log('Using media content ID:', mediaContentId);
 
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
                 media_content_id: mediaContentId
             });
 
-            console.log('Media source response:', response);
-
-            if (response && response.children) {
-                const mediaItems = await Promise.all(response.children.map(async (item) => {
-                    console.log('Processing item:', item);
-                    if (item.media_class === 'image' || item.media_class === 'video') {
-                        try {
-                            const resolvedUrl = await this._getResolvedUrl(item);
-                            return {
-                                url: resolvedUrl,
-                                type: item.media_class,
-                                contentId: item.media_content_id
-                            };
-                        } catch (resolveError) {
-                            console.error('Error resolving media item:', resolveError);
-                            return null;
-                        }
-                    }
-                    return null;
-                }));
-                
-                const filteredItems = mediaItems.filter(item => item !== null);
-                console.log('Final media list:', filteredItems);
-                return filteredItems;
-            }
-            return [];
+            return await this._processMediaSourceResponse(response);
         } catch (error) {
             console.error('Error loading from media source:', error);
             throw error;
         }
     }
 
-    async _getResolvedUrl(item) {
-        // Check if we have a cached URL that hasn't expired
-        const cachedUrl = this._resolvedUrls.get(item.media_content_id);
-        const timestamp = this._urlCacheTimestamps.get(item.media_content_id);
-        const now = Date.now();
-
-        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
-            console.log('Using cached URL for:', item.media_content_id);
-            return cachedUrl;
-        }
-
-        // Resolve new URL
-        console.log('Resolving new URL for:', item.media_content_id);
-        const resolveResponse = await this._hass.callWS({
-            type: 'media_source/resolve_media',
-            media_content_id: item.media_content_id
-        });
-
-        const resolvedUrl = resolveResponse.url;
-        this._resolvedUrls.set(item.media_content_id, resolvedUrl);
-        this._urlCacheTimestamps.set(item.media_content_id, now);
+    async _processMediaSourceResponse(item) {
+        let items = [];
         
-        return resolvedUrl;
+        if (item.children) {
+            const childrenItems = await Promise.all(item.children.map(async (child) => {
+                if (child.media_class === 'directory') {
+                    return await this._processMediaSourceResponse(child);
+                } else if (child.media_class === 'image' || child.media_class === 'video') {
+                    try {
+                        const resolvedUrl = await this._getResolvedUrl(child);
+                        return [{
+                            url: resolvedUrl,
+                            type: child.media_class,
+                            contentId: child.media_content_id
+                        }];
+                    } catch (e) {
+                        return [];
+                    }
+                }
+                return [];
+            }));
+            items = childrenItems.flat();
+        } else if (item.media_class === 'image' || item.media_class === 'video') {
+            const resolvedUrl = await this._getResolvedUrl(item);
+            items.push({
+                url: resolvedUrl,
+                type: item.media_class,
+                contentId: item.media_content_id
+            });
+        }
+        
+        return items;
     }
 
     async _loadFromLocal() {
-        // For local paths, we'll rely on the files being in the correct location
-        // and matching our supported extensions
-        return []; // This will be implemented based on directory listing capability
+        // Since we can't browse /local/ (www) directory, we check if there are 
+        // any files in the media_source 'local' that might match.
+        // Actually, most users should use media_source for this.
+        // For now, we return empty or try to browse media_source/local as fallback.
+        try {
+            const path = this._config.path.replace(/^\/local\//, 'local/');
+            return await this._loadFromMediaSourcePath(path);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    async _loadFromMediaSourcePath(path) {
+        const response = await this._hass.callWS({
+            type: 'media_source/browse_media',
+            media_content_id: `media-source://media_source/${path}`
+        });
+        return await this._processMediaSourceResponse(response);
     }
 
     _shuffleArray(array) {
@@ -282,39 +271,45 @@ class HAGalleryCard extends HTMLElement {
         const wrapper = this.shadowRoot.querySelector('.media-wrapper');
         const oldMedia = wrapper.querySelector('.media-item');
         
+        // Hard cleanup of old media to prevent "Zombie" audio
         if (oldMedia) {
             if (oldMedia.tagName === 'VIDEO') {
                 oldMedia.pause();
-                oldMedia.currentTime = 0;
+                oldMedia.src = '';
+                oldMedia.load(); // Forces browser to release resources
+                oldMedia.remove();
+            } else {
+                oldMedia.remove();
             }
-            oldMedia.remove();
+        }
+
+        if (this._timer) {
+            clearTimeout(this._timer);
+            this._timer = null;
         }
 
         let element;
         if (media.type === 'video') {
             element = this._createVideoElement(media.url);
         } else {
-            // Check if we have a preloaded image
             const preloadedImage = this._preloadedImages.get(media.url);
             if (preloadedImage && preloadedImage.complete) {
-                console.log('Using preloaded image:', media.url);
                 element = preloadedImage.cloneNode(true);
                 element.className = 'media-item';
                 element.style.objectFit = this._config.fit;
             } else {
-                console.log('Creating new image element:', media.url);
                 element = this._createImageElement(media.url);
             }
         }
 
         wrapper.appendChild(element);
 
-        // Only set timer for images, videos will use 'ended' event
-        if (media.type !== 'video' && this._isPlaying) {
+        // Videos trigger _next via 'ended' event, Images use a timer
+        const isVisible = this._isPageVisible && this._isIntersecting;
+        if (media.type !== 'video' && this._isPlaying && isVisible) {
             this._setTimer();
         }
         
-        // Preload next image
         this._preloadNextImage();
     }
 
@@ -376,13 +371,52 @@ class HAGalleryCard extends HTMLElement {
         this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
     }
 
+    async _getResolvedUrl(item) {
+        // Check if we have a cached URL that hasn't expired
+        const cachedUrl = this._resolvedUrls.get(item.media_content_id);
+        const timestamp = this._urlCacheTimestamps.get(item.media_content_id);
+        const now = Date.now();
+
+        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
+            console.log('Using cached URL for:', item.media_content_id);
+            return cachedUrl;
+        }
+
+        // Resolve new URL
+        console.log('Resolving new URL for:', item.media_content_id);
+        const resolveResponse = await this._hass.callWS({
+            type: 'media_source/resolve_media',
+            media_content_id: item.media_content_id
+        });
+
+        const resolvedUrl = resolveResponse.url;
+        this._resolvedUrls.set(item.media_content_id, resolvedUrl);
+        this._urlCacheTimestamps.set(item.media_content_id, now);
+        
+        return resolvedUrl;
+    }
+
     _next() {
-        this._currentIndex = (this._currentIndex + 1) % this._mediaList.length;
+        if (this._mediaList.length <= 1) return;
+        
+        this._currentIndex++;
+        if (this._currentIndex >= this._mediaList.length) {
+            this._currentIndex = 0;
+            // Re-shuffle at the end of the list for continuous variety
+            if (this._config.shuffle) {
+                this._mediaList = this._shuffleArray(this._mediaList);
+            }
+        }
         this._showMedia();
     }
 
     _previous() {
-        this._currentIndex = (this._currentIndex - 1 + this._mediaList.length) % this._mediaList.length;
+        if (this._mediaList.length <= 1) return;
+        
+        this._currentIndex--;
+        if (this._currentIndex < 0) {
+            this._currentIndex = this._mediaList.length - 1;
+        }
         this._showMedia();
     }
 
@@ -485,6 +519,44 @@ class HAGalleryEditor extends HTMLElement {
                 selector: {
                     select: {
                         options: [
+                            { value: 'contain', label: 'Contain' },
+                            { value: 'cover', label: 'Cover' },
+                            { value: 'fill', label: 'Fill' }
+                        ],
+                        mode: 'dropdown'
+                    }
+                }
+            },
+            {
+                name: 'volume',
+                selector: { number: { min: 0, max: 100, mode: 'slider' } }
+            }
+        ];
+
+        this.innerHTML = `
+            <ha-form
+                .schema=${schema}
+                .data=${this._config}
+                @value-changed=${this._valueChanged}
+            ></ha-form>
+        `;
+    }
+}
+
+console.log('Registering ha-gallery-card custom element');
+customElements.define('ha-gallery-card', HAGalleryCard);
+console.log('Registering ha-gallery-editor custom element');
+customElements.define('ha-gallery-editor', HAGalleryEditor);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+    type: 'ha-gallery-card',
+    name: 'Gallery Card',
+    preview: true,
+    description: 'A card that displays a gallery of images and videos'
+});
+console.log('HA Gallery Card registration complete');
+            options: [
                             { value: 'contain', label: 'Contain' },
                             { value: 'cover', label: 'Cover' },
                             { value: 'fill', label: 'Fill' }
