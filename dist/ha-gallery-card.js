@@ -422,7 +422,8 @@ class HAGalleryCard extends HTMLElement {
         video.playsInline = true;
         video.addEventListener('ended', () => {
             if (this._isPlaying) {
-                this._next();
+                if (this._timer) clearTimeout(this._timer);
+                this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
             }
         });
         video.addEventListener('error', () => this._next());
