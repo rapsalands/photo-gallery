@@ -75,7 +75,7 @@ class HAGalleryCard extends HTMLElement {
         this._preloadedImages = new Map();
         this._resolvedUrls = new Map();
         this._urlCacheTimestamps = new Map();
-        this._maxCacheAge = 3600000;
+        this._maxCacheAge = 300000; // 5 minutes in milliseconds
         this._isLoading = false;
 
         this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
@@ -471,13 +471,44 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async _getResolvedUrl(item) {
-        // Always resolve fresh to avoid expired tokens
+        const contentId = item.contentId || item.media_content_id;
+        
+        // Check cache
+        const cachedUrl = this._resolvedUrls.get(contentId);
+        const timestamp = this._urlCacheTimestamps.get(contentId);
+        const now = Date.now();
+
+        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
+            return cachedUrl;
+        }
+
+        // Resolve fresh
         const resolveResponse = await this._hass.callWS({
             type: 'media_source/resolve_media',
-            media_content_id: item.contentId
+            media_content_id: contentId
         });
 
-        return resolveResponse.url;
+        const resolvedUrl = resolveResponse.url;
+        this._resolvedUrls.set(contentId, resolvedUrl);
+        this._urlCacheTimestamps.set(contentId, now);
+        
+        return resolvedUrl;
+    }
+
+    async _preloadNextItem() {
+        if (this._mediaList.length <= 1) return;
+        
+        const nextIndex = (this._currentIndex + 1) % this._mediaList.length;
+        const nextMedia = this._mediaList[nextIndex];
+        
+        if (nextMedia && nextMedia.contentId) {
+            try {
+                // This will put it in the cache for when _showMedia needs it
+                await this._getResolvedUrl(nextMedia);
+            } catch (e) {
+                // Silently fail preload
+            }
+        }
     }
 
     _next() {
