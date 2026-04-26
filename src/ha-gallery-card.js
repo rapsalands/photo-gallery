@@ -218,6 +218,7 @@ class HAGalleryCard extends HTMLElement {
         this._isLoading = true;
         
         try {
+            console.log('[HA Gallery] Starting load process for path:', this._config.path);
             let mediaList = [];
 
             if (this._config.source_type === 'media_source') {
@@ -225,6 +226,8 @@ class HAGalleryCard extends HTMLElement {
             } else {
                 mediaList = await this._loadFromLocal();
             }
+
+            console.log(`[HA Gallery] Load complete. Found ${mediaList ? mediaList.length : 0} items.`);
 
             if (mediaList && mediaList.length > 0) {
                 this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
@@ -244,10 +247,12 @@ class HAGalleryCard extends HTMLElement {
 
     async _loadFromMediaSource() {
         try {
-            const cleanPath = this._config.path.replace(/^\/+/, '');
-            const mediaContentId = cleanPath.startsWith('media-source://') 
-                ? cleanPath 
+            const cleanPath = this._config.path.trim().replace(/^media-source:\/\/media_source\//, '');
+            const mediaContentId = this._config.path.startsWith('media-source://') 
+                ? this._config.path 
                 : `media-source://media_source/${cleanPath}`;
+
+            console.log('[HA Gallery] Requesting media_source/browse_media with ID:', mediaContentId);
 
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
