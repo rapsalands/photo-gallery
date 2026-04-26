@@ -265,20 +265,21 @@ class HAGalleryCard extends HTMLElement {
         let items = [];
         
         if (item.children) {
-            const childrenItems = await Promise.all(item.children.map(async (child) => {
+            console.log(`[HA Gallery] Scanning folder: ${item.title || 'root'} (${item.children.length} children)`);
+            
+            // Sequential processing instead of Promise.all to prevent server timeout
+            for (const child of item.children) {
                 if (child.media_class === 'directory') {
-                    return await this._processMediaSourceResponse(child);
+                    const subItems = await this._processMediaSourceResponse(child);
+                    items = items.concat(subItems);
                 } else if (child.media_class === 'image' || child.media_class === 'video') {
-                    // Store the contentId but DON'T resolve the URL yet
-                    return [{
-                        url: null, // Will be resolved just-in-time
+                    items.push({
+                        url: null,
                         type: child.media_class,
                         contentId: child.media_content_id
-                    }];
+                    });
                 }
-                return [];
-            }));
-            items = childrenItems.flat();
+            }
         } else if (item.media_class === 'image' || item.media_class === 'video') {
             items.push({
                 url: null,
