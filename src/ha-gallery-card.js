@@ -362,15 +362,29 @@ class HAGalleryCard extends HTMLElement {
         if (!this._mediaList.length) return;
 
         const media = this._mediaList[this._currentIndex];
+        console.log(`[HA Gallery] Displaying media ${this._currentIndex + 1}/${this._mediaList.length}:`, media.contentId);
         
-        // Resolve URL just-in-time
+        // Resolve URL (checks cache first)
         let mediaUrl = media.url;
         if (media.contentId) {
             try {
                 mediaUrl = await this._getResolvedUrl(media);
+                this._consecutiveFailures = 0; // Reset on success
             } catch (error) {
-                console.error('Failed to resolve media:', media.contentId, error);
-                this._next(); // Skip to next if this one fails
+                console.error(`[HA Gallery] Error resolving ${media.contentId}:`, error);
+                
+                this._consecutiveFailures = (this._consecutiveFailures || 0) + 1;
+                if (this._consecutiveFailures >= this._mediaList.length || this._consecutiveFailures >= 10) {
+                    console.error('[HA Gallery] Stopping gallery: Too many consecutive failures.');
+                    this._showError('Too many errors resolving media. Check Home Assistant logs or server status.');
+                    this._stopAll();
+                    return;
+                }
+                
+                // Safety: Wait 2 seconds before trying the next one to avoid hammering the server
+                console.warn(`[HA Gallery] Waiting 2s before retry (Failure ${this._consecutiveFailures})...`);
+                if (this._timer) clearTimeout(this._timer);
+                this._timer = setTimeout(() => this._next(), 2000);
                 return;
             }
         }
@@ -383,7 +397,7 @@ class HAGalleryCard extends HTMLElement {
             if (oldMedia.tagName === 'VIDEO') {
                 oldMedia.pause();
                 oldMedia.src = '';
-                oldMedia.load(); // Forces browser to release resources
+                oldMedia.load();
                 oldMedia.remove();
             } else {
                 oldMedia.remove();
@@ -397,8 +411,10 @@ class HAGalleryCard extends HTMLElement {
 
         let element;
         if (media.type === 'video') {
+            console.log('[HA Gallery] Creating video element');
             element = this._createVideoElement(mediaUrl);
         } else {
+            console.log('[HA Gallery] Creating image element');
             element = this._createImageElement(mediaUrl);
         }
 
@@ -409,6 +425,9 @@ class HAGalleryCard extends HTMLElement {
         if (media.type !== 'video' && this._isPlaying && isVisible) {
             this._setTimer();
         }
+
+        // Preload next item into cache (Temporarily disabled for debugging)
+        // this._preloadNextItem();
     }
 
     _createVideoElement(url) {
@@ -479,20 +498,31 @@ class HAGalleryCard extends HTMLElement {
         const now = Date.now();
 
         if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
+            console.log(`[HA Gallery] Using cached URL for ${contentId} (${Math.round((now - timestamp)/1000)}s old)`);
             return cachedUrl;
         }
 
-        // Resolve fresh
-        const resolveResponse = await this._hass.callWS({
-            type: 'media_source/resolve_media',
-            media_content_id: contentId
-        });
+        console.log(`[HA Gallery] Fetching fresh URL for ${contentId}...`);
+        try {
+            const resolveResponse = await this._hass.callWS({
+                type: 'media_source/resolve_media',
+                media_content_id: contentId
+            });
 
-        const resolvedUrl = resolveResponse.url;
-        this._resolvedUrls.set(contentId, resolvedUrl);
-        this._urlCacheTimestamps.set(contentId, now);
-        
-        return resolvedUrl;
+            if (!resolveResponse || !resolveResponse.url) {
+                throw new Error('Server returned empty URL response');
+            }
+
+            const resolvedUrl = resolveResponse.url;
+            this._resolvedUrls.set(contentId, resolvedUrl);
+            this._urlCacheTimestamps.set(contentId, now);
+            console.log(`[HA Gallery] Successfully resolved ${contentId}`);
+            
+            return resolvedUrl;
+        } catch (e) {
+            console.error(`[HA Gallery] WebSocket Error resolving ${contentId}:`, e);
+            throw e;
+        }
     }
 
     async _preloadNextItem() {
