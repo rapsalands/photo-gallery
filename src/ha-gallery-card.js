@@ -1,4 +1,4 @@
-console.log('HA Gallery Card module loaded');
+console.log('HA Gallery Card module loaded - Version 1.0.3-DIAG');
 
 const styles = `
     :host {
@@ -72,18 +72,17 @@ class HAGalleryCard extends HTMLElement {
         this._isPageVisible = true;
         this._isIntersecting = true;
         this._timer = null;
-        this._preloadedImages = new Map();
         this._resolvedUrls = new Map();
         this._urlCacheTimestamps = new Map();
-        this._maxCacheAge = 300000; // 5 minutes in milliseconds
+        this._maxCacheAge = 300000; // 5 mins
         this._isLoading = false;
+        this._consecutiveFailures = 0;
 
         this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
     }
 
     connectedCallback() {
         document.addEventListener('visibilitychange', this._handleVisibilityChange);
-        
         this._observer = new IntersectionObserver((entries) => {
             this._isIntersecting = entries[0].isIntersecting;
             this._handleVisibilityChange();
@@ -120,19 +119,13 @@ class HAGalleryCard extends HTMLElement {
             this._timer = null;
         }
         const video = this.shadowRoot.querySelector('video');
-        if (video) {
-            video.pause();
-        }
+        if (video) video.pause();
     }
 
     static get properties() {
         return {
             _config: { type: Object },
-            _hass: { type: Object },
-            _mediaList: { type: Array },
-            _currentIndex: { type: Number },
-            _isPlaying: { type: Boolean },
-            _timer: { type: Object }
+            _hass: { type: Object }
         };
     }
 
@@ -140,7 +133,6 @@ class HAGalleryCard extends HTMLElement {
         return document.createElement('ha-gallery-editor');
     }
 
-    // Returns a stub configuration for testing purposes
     static getStubConfig() {
         return {
             source_type: 'media_source',
@@ -152,63 +144,29 @@ class HAGalleryCard extends HTMLElement {
         };
     }
 
-    _clearCaches() {
-        console.log('Clearing media caches');
-        this._preloadedImages.clear();
-        this._resolvedUrls.clear();
-        this._urlCacheTimestamps.clear();
-        this._mediaList = [];
-    }
-
     setConfig(config) {
-        if (!config.path) {
-            throw new Error('Please define path');
-        }
-        if (!config.source_type || !['local', 'media_source'].includes(config.source_type)) {
-            throw new Error('source_type must be either "local" or "media_source"');
-        }
+        if (!config.path) throw new Error('Please define path');
         
-        const validFitValues = ['contain', 'cover', 'fill'];
-        if (config.fit && !validFitValues.includes(config.fit)) {
-            console.warn(`Invalid fit value "${config.fit}". Using "contain" instead. Valid values are: ${validFitValues.join(', ')}`);
-        }
-
         const oldConfig = this._config;
-        
-        // Create a new config object with all properties
         this._config = {
-            source_type: config.source_type,
+            source_type: config.source_type || 'media_source',
             path: config.path,
             transition_time: config.transition_time || 5,
             shuffle: Boolean(config.shuffle),
-            fit: validFitValues.includes(config.fit) ? config.fit : 'contain',
+            fit: config.fit || 'contain',
             volume: Number(config.volume || 15)
         };
 
-        // If path or source type changed, clear caches and reload
-        if (oldConfig && (oldConfig.path !== this._config.path || oldConfig.source_type !== this._config.source_type)) {
-            this._clearCaches();
+        if (oldConfig && (oldConfig.path !== this._config.path)) {
+            this._mediaList = [];
             if (this._hass) this._loadMedia();
-        } else if (oldConfig && oldConfig.shuffle !== this._config.shuffle) {
-            // If only shuffle changed, re-order the current list
-            if (this._mediaList.length > 0) {
-                if (this._config.shuffle) {
-                    this._mediaList = this._shuffleArray(this._mediaList);
-                } else {
-                    // We don't have the original order unless we re-load
-                    this._loadMedia();
-                }
-            }
         }
-        
         this.render();
     }
 
     set hass(hass) {
         this._hass = hass;
-        
-        // Initial load
-        if (!this._mediaList.length && this._config) {
+        if (!this._mediaList.length && this._config && !this._isLoading) {
             this._loadMedia();
         }
     }
@@ -216,224 +174,117 @@ class HAGalleryCard extends HTMLElement {
     async _loadMedia() {
         if (this._isLoading) return;
         this._isLoading = true;
+        console.log('[HA Gallery] STARTING LOAD. Path:', this._config.path);
         
         try {
-            console.log('[HA Gallery] Starting load process for path:', this._config.path);
-            let mediaList = [];
-
-            if (this._config.source_type === 'media_source') {
-                mediaList = await this._loadFromMediaSource();
-            } else {
-                mediaList = await this._loadFromLocal();
-            }
-
-            console.log(`[HA Gallery] Load complete. Found ${mediaList ? mediaList.length : 0} items.`);
-
-            if (mediaList && mediaList.length > 0) {
-                this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
-                this._currentIndex = 0;
-                this._showMedia();
-            } else {
-                this._mediaList = [];
-                this._showError('No media found in the specified path.');
-            }
-        } catch (error) {
-            console.error('Error loading media:', error);
-            this._showError('Error loading media: ' + (error.message || 'Check console'));
-        } finally {
-            this._isLoading = false;
-        }
-    }
-
-    async _loadFromMediaSource() {
-        try {
-            const cleanPath = this._config.path.trim().replace(/^media-source:\/\/media_source\//, '');
             const mediaContentId = this._config.path.startsWith('media-source://') 
                 ? this._config.path 
-                : `media-source://media_source/${cleanPath}`;
+                : `media-source://media_source/${this._config.path.replace(/^\/+/, '')}`;
 
-            console.log('[HA Gallery] Requesting media_source/browse_media with ID:', mediaContentId);
-
+            console.log('[HA Gallery] Requesting Browse with ID:', mediaContentId);
+            
             const response = await this._hass.callWS({
                 type: 'media_source/browse_media',
                 media_content_id: mediaContentId
             });
 
-            return await this._processMediaSourceResponse(response);
-        } catch (error) {
-            console.error('Error loading from media source:', error);
-            throw error;
-        }
-    }
+            console.log('[HA Gallery] RAW RESPONSE RECEIVED:', response);
 
-    async _processMediaSourceResponse(item) {
-        let items = [];
-        
-        if (item.children) {
-            console.log(`[HA Gallery] Scanning folder: ${item.title || 'root'} (${item.children.length} children)`);
-            
-            // Sequential processing instead of Promise.all to prevent server timeout
-            for (const child of item.children) {
-                if (child.media_class === 'directory') {
-                    const subItems = await this._processMediaSourceResponse(child);
-                    items = items.concat(subItems);
-                } else if (child.media_class === 'image' || child.media_class === 'video') {
-                    items.push({
+            if (!response || !response.children) {
+                console.warn('[HA Gallery] Response has no children.');
+                this._mediaList = [];
+            } else {
+                this._mediaList = response.children
+                    .filter(child => child.media_class === 'image' || child.media_class === 'video')
+                    .map(child => ({
                         url: null,
                         type: child.media_class,
-                        contentId: child.media_content_id
-                    });
-                }
+                        contentId: child.media_content_id,
+                        title: child.title
+                    }));
+                
+                console.log(`[HA Gallery] Filtered ${this._mediaList.length} media items.`);
             }
-        } else if (item.media_class === 'image' || item.media_class === 'video') {
-            items.push({
-                url: null,
-                type: item.media_class,
-                contentId: item.media_content_id
-            });
+
+            if (this._mediaList.length > 0) {
+                if (this._config.shuffle) {
+                    this._mediaList = this._shuffleArray(this._mediaList);
+                }
+                this._currentIndex = 0;
+                this._showMedia();
+            } else {
+                this._showError('No media found.');
+            }
+        } catch (error) {
+            console.error('[HA Gallery] LOAD ERROR:', error);
+            this._showError('Error: ' + (error.message || 'Unknown. See Console.'));
+        } finally {
+            this._isLoading = false;
         }
-        
-        return items;
-    }
-
-    async _loadFromLocal() {
-        try {
-            const path = this._config.path.replace(/^\/local\//, 'local/');
-            return await this._loadFromMediaSourcePath(path);
-        } catch (e) {
-            return [];
-        }
-    }
-
-    async _loadFromMediaSourcePath(path) {
-        const response = await this._hass.callWS({
-            type: 'media_source/browse_media',
-            media_content_id: `media-source://media_source/${path}`
-        });
-        return await this._processMediaSourceResponse(response);
-    }
-
-    _shuffleArray(array) {
-        const newArray = [...array];
-        for (let i = newArray.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-        }
-        return newArray;
-    }
-
-    render() {
-        const style = document.createElement('style');
-        style.textContent = styles;
-
-        const container = document.createElement('div');
-        container.className = 'media-container';
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'media-wrapper';
-        
-        const controls = document.createElement('div');
-        controls.className = 'controls';
-        controls.innerHTML = `
-            <button class="control-button prev">⬅️</button>
-            <button class="control-button play-pause">${this._isPlaying ? '⏸️' : '▶️'}</button>
-            <button class="control-button next">➡️</button>
-        `;
-
-        wrapper.appendChild(controls);
-        container.appendChild(wrapper);
-        
-        // Clear the shadow root
-        while (this.shadowRoot.firstChild) {
-            this.shadowRoot.removeChild(this.shadowRoot.firstChild);
-        }
-
-        // Add new elements
-        this.shadowRoot.appendChild(style);
-        this.shadowRoot.appendChild(container);
-
-        // Wait for elements to be in the DOM before adding listeners
-        requestAnimationFrame(() => {
-            const prevButton = this.shadowRoot.querySelector('.prev');
-            const nextButton = this.shadowRoot.querySelector('.next');
-            const playPauseButton = this.shadowRoot.querySelector('.play-pause');
-            
-            if (prevButton) prevButton.addEventListener('click', () => this._previous());
-            if (nextButton) nextButton.addEventListener('click', () => this._next());
-            if (playPauseButton) playPauseButton.addEventListener('click', () => this._togglePlayPause());
-        });
     }
 
     async _showMedia() {
         if (!this._mediaList.length) return;
-
         const media = this._mediaList[this._currentIndex];
-        console.log(`[HA Gallery] Displaying media ${this._currentIndex + 1}/${this._mediaList.length}:`, media.contentId);
         
-        // Resolve URL (checks cache first)
-        let mediaUrl = media.url;
-        if (media.contentId) {
-            try {
-                mediaUrl = await this._getResolvedUrl(media);
-                this._consecutiveFailures = 0; // Reset on success
-            } catch (error) {
-                console.error(`[HA Gallery] Error resolving ${media.contentId}:`, error);
-                
-                this._consecutiveFailures = (this._consecutiveFailures || 0) + 1;
-                if (this._consecutiveFailures >= this._mediaList.length || this._consecutiveFailures >= 10) {
-                    console.error('[HA Gallery] Stopping gallery: Too many consecutive failures.');
-                    this._showError('Too many errors resolving media. Check Home Assistant logs or server status.');
-                    this._stopAll();
-                    return;
+        try {
+            console.log(`[HA Gallery] Showing item ${this._currentIndex + 1}/${this._mediaList.length}: ${media.title || media.contentId}`);
+            
+            const mediaUrl = await this._getResolvedUrl(media);
+            this._consecutiveFailures = 0;
+
+            const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+            const oldMedia = wrapper.querySelector('.media-item');
+            
+            if (oldMedia) {
+                if (oldMedia.tagName === 'VIDEO') {
+                    oldMedia.pause();
+                    oldMedia.src = '';
+                    oldMedia.load();
                 }
-                
-                // Safety: Wait 2 seconds before trying the next one to avoid hammering the server
-                console.warn(`[HA Gallery] Waiting 2s before retry (Failure ${this._consecutiveFailures})...`);
-                if (this._timer) clearTimeout(this._timer);
+                oldMedia.remove();
+            }
+
+            if (this._timer) {
+                clearTimeout(this._timer);
+                this._timer = null;
+            }
+
+            const element = media.type === 'video' 
+                ? this._createVideoElement(mediaUrl)
+                : this._createImageElement(mediaUrl);
+
+            wrapper.appendChild(element);
+
+            if (media.type !== 'video' && this._isPlaying && this._isPageVisible && this._isIntersecting) {
+                this._setTimer();
+            }
+        } catch (error) {
+            console.error('[HA Gallery] DISPLAY ERROR:', error);
+            this._consecutiveFailures++;
+            if (this._consecutiveFailures < 5) {
                 this._timer = setTimeout(() => this._next(), 2000);
-                return;
-            }
-        }
-
-        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
-        const oldMedia = wrapper.querySelector('.media-item');
-        
-        // Hard cleanup of old media to prevent "Zombie" audio
-        if (oldMedia) {
-            if (oldMedia.tagName === 'VIDEO') {
-                oldMedia.pause();
-                oldMedia.src = '';
-                oldMedia.load();
-                oldMedia.remove();
             } else {
-                oldMedia.remove();
+                this._showError('Multiple failures. Stopped.');
             }
         }
+    }
 
-        if (this._timer) {
-            clearTimeout(this._timer);
-            this._timer = null;
+    async _getResolvedUrl(item) {
+        const cachedUrl = this._resolvedUrls.get(item.contentId);
+        const timestamp = this._urlCacheTimestamps.get(item.contentId);
+        if (cachedUrl && timestamp && (Date.now() - timestamp) < this._maxCacheAge) {
+            return cachedUrl;
         }
 
-        let element;
-        if (media.type === 'video') {
-            console.log('[HA Gallery] Creating video element');
-            element = this._createVideoElement(mediaUrl);
-        } else {
-            console.log('[HA Gallery] Creating image element');
-            element = this._createImageElement(mediaUrl);
-        }
+        const resolveResponse = await this._hass.callWS({
+            type: 'media_source/resolve_media',
+            media_content_id: item.contentId
+        });
 
-        wrapper.appendChild(element);
-
-        // Videos trigger _next via 'ended' event, Images use a timer
-        const isVisible = this._isPageVisible && this._isIntersecting;
-        if (media.type !== 'video' && this._isPlaying && isVisible) {
-            this._setTimer();
-        }
-
-        // Preload next item into cache (Temporarily disabled for debugging)
-        // this._preloadNextItem();
+        this._resolvedUrls.set(item.contentId, resolveResponse.url);
+        this._urlCacheTimestamps.set(item.contentId, Date.now());
+        return resolveResponse.url;
     }
 
     _createVideoElement(url) {
@@ -446,22 +297,10 @@ class HAGalleryCard extends HTMLElement {
         video.playsInline = true;
         video.addEventListener('ended', () => {
             if (this._isPlaying) {
-                if (this._timer) clearTimeout(this._timer);
                 this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
             }
         });
         video.addEventListener('error', () => this._next());
-        video.addEventListener('loadedmetadata', () => {
-            // Adjust container height based on video aspect ratio
-            const container = this.shadowRoot.querySelector('.media-container');
-            if (container && video.videoWidth && video.videoHeight) {
-                const aspectRatio = video.videoHeight / video.videoWidth;
-                container.style.height = `${container.offsetWidth * aspectRatio}px`;
-            }
-        });
-        if (this._isPlaying) {
-            video.play().catch(error => console.error('Error playing video:', error));
-        }
         return video;
     }
 
@@ -471,12 +310,6 @@ class HAGalleryCard extends HTMLElement {
         img.src = url;
         img.style.objectFit = this._config.fit;
         img.addEventListener('load', () => {
-            // Adjust container height based on image aspect ratio
-            const container = this.shadowRoot.querySelector('.media-container');
-            if (container && img.naturalWidth && img.naturalHeight) {
-                const aspectRatio = img.naturalHeight / img.naturalWidth;
-                container.style.height = `${container.offsetWidth * aspectRatio}px`;
-            }
             if (this._isPlaying) this._setTimer();
         });
         img.addEventListener('error', () => this._next());
@@ -485,143 +318,67 @@ class HAGalleryCard extends HTMLElement {
 
     _setTimer() {
         if (this._timer) clearTimeout(this._timer);
-        
-        // Don't set timer if current media is video
-        const currentMedia = this.shadowRoot.querySelector('.media-item');
-        if (currentMedia && currentMedia.tagName === 'VIDEO') {
-            return; // Let video's 'ended' event handle transition
-        }
-        
         this._timer = setTimeout(() => this._next(), this._config.transition_time * 1000);
     }
 
-    async _getResolvedUrl(item) {
-        const contentId = item.contentId || item.media_content_id;
-        
-        // Check cache
-        const cachedUrl = this._resolvedUrls.get(contentId);
-        const timestamp = this._urlCacheTimestamps.get(contentId);
-        const now = Date.now();
-
-        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
-            console.log(`[HA Gallery] Using cached URL for ${contentId} (${Math.round((now - timestamp)/1000)}s old)`);
-            return cachedUrl;
-        }
-
-        console.log(`[HA Gallery] Fetching fresh URL for ${contentId}...`);
-        try {
-            const resolveResponse = await this._hass.callWS({
-                type: 'media_source/resolve_media',
-                media_content_id: contentId
-            });
-
-            if (!resolveResponse || !resolveResponse.url) {
-                throw new Error('Server returned empty URL response');
-            }
-
-            const resolvedUrl = resolveResponse.url;
-            this._resolvedUrls.set(contentId, resolvedUrl);
-            this._urlCacheTimestamps.set(contentId, now);
-            console.log(`[HA Gallery] Successfully resolved ${contentId}`);
-            
-            return resolvedUrl;
-        } catch (e) {
-            console.error(`[HA Gallery] WebSocket Error resolving ${contentId}:`, e);
-            throw e;
-        }
-    }
-
-    async _preloadNextItem() {
-        if (this._mediaList.length <= 1) return;
-        
-        const nextIndex = (this._currentIndex + 1) % this._mediaList.length;
-        const nextMedia = this._mediaList[nextIndex];
-        
-        if (nextMedia && nextMedia.contentId) {
-            try {
-                // This will put it in the cache for when _showMedia needs it
-                await this._getResolvedUrl(nextMedia);
-            } catch (e) {
-                // Silently fail preload
-            }
-        }
-    }
-
     _next() {
-        if (this._mediaList.length <= 1) return;
-        
-        this._currentIndex++;
-        if (this._currentIndex >= this._mediaList.length) {
-            this._currentIndex = 0;
-            // Re-shuffle at the end of the list for continuous variety
-            if (this._config.shuffle) {
-                this._mediaList = this._shuffleArray(this._mediaList);
-            }
+        if (!this._mediaList.length) return;
+        this._currentIndex = (this._currentIndex + 1) % this._mediaList.length;
+        if (this._currentIndex === 0 && this._config.shuffle) {
+            this._mediaList = this._shuffleArray(this._mediaList);
         }
         this._showMedia();
     }
 
     _previous() {
-        if (this._mediaList.length <= 1) return;
-        
-        this._currentIndex--;
-        if (this._currentIndex < 0) {
-            this._currentIndex = this._mediaList.length - 1;
-        }
+        if (!this._mediaList.length) return;
+        this._currentIndex = (this._currentIndex - 1 + this._mediaList.length) % this._mediaList.length;
         this._showMedia();
     }
 
-    _togglePlayPause() {
-        this._isPlaying = !this._isPlaying;
-        const button = this.shadowRoot.querySelector('.play-pause');
-        button.textContent = this._isPlaying ? '⏸️' : '▶️';
-
-        const video = this.shadowRoot.querySelector('video');
-        if (video) {
-            this._isPlaying ? video.play() : video.pause();
-        } else if (this._isPlaying) {
-            this._setTimer();
-        } else if (this._timer) {
-            clearTimeout(this._timer);
+    _shuffleArray(array) {
+        const newArray = [...array];
+        for (let i = newArray.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
         }
-    }
-
-    _preloadNextImage() {
-        if (this._mediaList.length <= 1) return;
-        
-        const nextIndex = (this._currentIndex + 1) % this._mediaList.length;
-        const nextMedia = this._mediaList[nextIndex];
-        
-        if (nextMedia && nextMedia.type === 'image' && !this._preloadedImages.has(nextMedia.url)) {
-            const img = new Image();
-            img.src = nextMedia.url;
-            this._preloadedImages.set(nextMedia.url, img);
-        }
+        return newArray;
     }
 
     _showError(message) {
         const wrapper = this.shadowRoot.querySelector('.media-wrapper');
         if (wrapper) {
-            while (wrapper.firstChild) {
-                wrapper.removeChild(wrapper.firstChild);
-            }
-            const error = document.createElement('div');
-            error.style.color = 'white';
-            error.style.padding = '20px';
-            error.style.textAlign = 'center';
-            error.textContent = message;
-            wrapper.appendChild(error);
+            wrapper.innerHTML = `<div style="color: white; padding: 20px; text-align: center;">${message}</div>`;
         }
+    }
+
+    render() {
+        const style = document.createElement('style');
+        style.textContent = styles;
+        const container = document.createElement('div');
+        container.className = 'media-container';
+        container.innerHTML = `<div class="media-wrapper"><div class="controls"><button class="control-button prev">⬅️</button><button class="control-button play-pause">${this._isPlaying ? '⏸️' : '▶️'}</button><button class="control-button next">➡️</button></div></div>`;
+        
+        while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+        this.shadowRoot.appendChild(style);
+        this.shadowRoot.appendChild(container);
+
+        requestAnimationFrame(() => {
+            this.shadowRoot.querySelector('.prev')?.addEventListener('click', () => this._previous());
+            this.shadowRoot.querySelector('.next')?.addEventListener('click', () => this._next());
+            this.shadowRoot.querySelector('.play-pause')?.addEventListener('click', () => {
+                this._isPlaying = !this._isPlaying;
+                if (!this._isPlaying && this._timer) clearTimeout(this._timer);
+                if (this._isPlaying) this._showMedia();
+                this.render();
+            });
+        });
     }
 }
 
 // Editor
 class HAGalleryEditor extends HTMLElement {
-    constructor() {
-        super();
-        this._config = {};
-    }
-
+    constructor() { super(); this._config = {}; }
     setConfig(config) {
         this._config = {
             source_type: config?.source_type || 'local',
@@ -633,98 +390,30 @@ class HAGalleryEditor extends HTMLElement {
         };
         this.render();
     }
-
     _valueChanged(ev) {
         if (!ev.detail?.value) return;
-        
-        const newConfig = {
-            ...this._config,
-            ...ev.detail.value
-        };
-
         this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: { config: newConfig },
-            bubbles: true,
-            composed: true
+            detail: { config: { ...this._config, ...ev.detail.value } },
+            bubbles: true, composed: true
         }));
     }
-
     render() {
-        if (!this._config) return;
-
         const schema = [
-            { 
-                name: 'source_type',
-                required: true,
-                selector: {
-                    select: {
-                        options: [
-                            { value: 'local', label: 'Local' },
-                            { value: 'media_source', label: 'Media Source' }
-                        ],
-                        mode: 'dropdown'
-                    }
-                }
-            },
-            { 
-                name: 'path',
-                required: true,
-                selector: { text: {} }
-            },
-            {
-                name: 'transition_time',
-                selector: { number: { min: 1, max: 60, mode: 'box' } }
-            },
-            {
-                name: 'shuffle',
-                selector: { boolean: {} }
-            },
-            { 
-                name: 'fit',
-                selector: {
-                    select: {
-                        options: [
-                            { value: 'contain', label: 'Contain' },
-                            { value: 'cover', label: 'Cover' },
-                            { value: 'fill', label: 'Fill' }
-                        ],
-                        mode: 'dropdown'
-                    }
-                }
-            },
-            {
-                name: 'volume',
-                selector: { number: { min: 0, max: 100, mode: 'slider' } }
-            }
+            { name: 'source_type', selector: { select: { options: [{ value: 'local', label: 'Local' }, { value: 'media_source', label: 'Media Source' }], mode: 'dropdown' } } },
+            { name: 'path', selector: { text: {} } },
+            { name: 'transition_time', selector: { number: { min: 1, max: 60, mode: 'box' } } },
+            { name: 'shuffle', selector: { boolean: {} } },
+            { name: 'fit', selector: { select: { options: [{ value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' }, { value: 'fill', label: 'Fill' }], mode: 'dropdown' } } },
+            { name: 'volume', selector: { number: { min: 0, max: 100, mode: 'slider' } } }
         ];
-
-        this.innerHTML = `
-            <ha-form
-                .schema=${schema}
-                .data=${this._config}
-                @value-changed=${this._valueChanged}
-            ></ha-form>
-        `;
+        this.innerHTML = `<ha-form .schema=${schema} .data=${this._config} @value-changed=${this._valueChanged}></ha-form>`;
     }
 }
 
-// Registration
-if (!customElements.get('ha-gallery-card')) {
-    customElements.define('ha-gallery-card', HAGalleryCard);
-    console.info('HA Gallery Card version 1.0.1 registered');
-}
-
-if (!customElements.get('ha-gallery-editor')) {
-    customElements.define('ha-gallery-editor', HAGalleryEditor);
-}
+if (!customElements.get('ha-gallery-card')) customElements.define('ha-gallery-card', HAGalleryCard);
+if (!customElements.get('ha-gallery-editor')) customElements.define('ha-gallery-editor', HAGalleryEditor);
 
 window.customCards = window.customCards || [];
-const cardExists = window.customCards.some(c => c.type === 'ha-gallery-card');
-if (!cardExists) {
-    window.customCards.push({
-        type: 'ha-gallery-card',
-        name: 'Gallery Card',
-        preview: true,
-        description: 'A card that displays a gallery of images and videos'
-    });
+if (!window.customCards.some(c => c.type === 'ha-gallery-card')) {
+    window.customCards.push({ type: 'ha-gallery-card', name: 'Gallery Card', preview: true, description: 'Diagnostic version' });
 }
