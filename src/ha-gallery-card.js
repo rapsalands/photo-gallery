@@ -65,17 +65,64 @@ const styles = `
 class HAGalleryCard extends HTMLElement {
     constructor() {
         super();
-        console.log('HA Gallery Card constructor called');
         this.attachShadow({ mode: 'open' });
         this._mediaList = [];
         this._currentIndex = 0;
         this._isPlaying = true;
+        this._isPageVisible = true;
+        this._isIntersecting = true;
         this._timer = null;
-        this._preloadedImages = new Map(); // Cache for preloaded images
-        this._resolvedUrls = new Map(); // Cache for resolved URLs
-        this._urlCacheTimestamps = new Map(); // Timestamps for URL cache entries
-        this._maxCacheAge = 3600000; // 1 hour in milliseconds
+        this._preloadedImages = new Map();
+        this._resolvedUrls = new Map();
+        this._urlCacheTimestamps = new Map();
+        this._maxCacheAge = 3600000;
         this._isLoading = false;
+
+        this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
+    }
+
+    connectedCallback() {
+        document.addEventListener('visibilitychange', this._handleVisibilityChange);
+        
+        this._observer = new IntersectionObserver((entries) => {
+            this._isIntersecting = entries[0].isIntersecting;
+            this._handleVisibilityChange();
+        }, { threshold: 0.1 });
+        this._observer.observe(this);
+    }
+
+    disconnectedCallback() {
+        document.removeEventListener('visibilitychange', this._handleVisibilityChange);
+        if (this._observer) this._observer.disconnect();
+        this._stopAll();
+    }
+
+    _handleVisibilityChange() {
+        const wasVisible = this._isPageVisible && this._isIntersecting;
+        this._isPageVisible = !document.hidden;
+        const isVisible = this._isPageVisible && this._isIntersecting;
+
+        if (wasVisible && !isVisible) {
+            this._stopAll();
+        } else if (!wasVisible && isVisible && this._isPlaying) {
+            const video = this.shadowRoot.querySelector('video');
+            if (video) {
+                video.play().catch(() => {});
+            } else {
+                this._setTimer();
+            }
+        }
+    }
+
+    _stopAll() {
+        if (this._timer) {
+            clearTimeout(this._timer);
+            this._timer = null;
+        }
+        const video = this.shadowRoot.querySelector('video');
+        if (video) {
+            video.pause();
+        }
     }
 
     static get properties() {
@@ -154,12 +201,10 @@ class HAGalleryCard extends HTMLElement {
             }
         }
         
-        console.log('Card configuration updated:', this._config);
         this.render();
     }
 
     set hass(hass) {
-        const oldHass = this._hass;
         this._hass = hass;
         
         // Initial load
@@ -173,7 +218,6 @@ class HAGalleryCard extends HTMLElement {
         this._isLoading = true;
         
         try {
-            console.log('_loadMedia called');
             let mediaList = [];
 
             if (this._config.source_type === 'media_source') {
@@ -181,8 +225,6 @@ class HAGalleryCard extends HTMLElement {
             } else {
                 mediaList = await this._loadFromLocal();
             }
-
-            console.log('Loaded media list:', mediaList);
 
             if (mediaList && mediaList.length > 0) {
                 this._mediaList = this._config.shuffle ? this._shuffleArray(mediaList) : mediaList;
@@ -254,10 +296,6 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async _loadFromLocal() {
-        // Since we can't browse /local/ (www) directory, we check if there are 
-        // any files in the media_source 'local' that might match.
-        // Actually, most users should use media_source for this.
-        // For now, we return empty or try to browse media_source/local as fallback.
         try {
             const path = this._config.path.replace(/^\/local\//, 'local/');
             return await this._loadFromMediaSourcePath(path);
@@ -439,12 +477,10 @@ class HAGalleryCard extends HTMLElement {
         const now = Date.now();
 
         if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
-            console.log('Using cached URL for:', item.media_content_id);
             return cachedUrl;
         }
 
         // Resolve new URL
-        console.log('Resolving new URL for:', item.media_content_id);
         const resolveResponse = await this._hass.callWS({
             type: 'media_source/resolve_media',
             media_content_id: item.media_content_id
@@ -503,10 +539,24 @@ class HAGalleryCard extends HTMLElement {
         const nextMedia = this._mediaList[nextIndex];
         
         if (nextMedia && nextMedia.type === 'image' && !this._preloadedImages.has(nextMedia.url)) {
-            console.log('Preloading next image:', nextMedia.url);
             const img = new Image();
             img.src = nextMedia.url;
             this._preloadedImages.set(nextMedia.url, img);
+        }
+    }
+
+    _showError(message) {
+        const wrapper = this.shadowRoot.querySelector('.media-wrapper');
+        if (wrapper) {
+            while (wrapper.firstChild) {
+                wrapper.removeChild(wrapper.firstChild);
+            }
+            const error = document.createElement('div');
+            error.style.color = 'white';
+            error.style.padding = '20px';
+            error.style.textAlign = 'center';
+            error.textContent = message;
+            wrapper.appendChild(error);
         }
     }
 }
@@ -604,54 +654,23 @@ class HAGalleryEditor extends HTMLElement {
     }
 }
 
-console.log('Registering ha-gallery-card custom element');
-customElements.define('ha-gallery-card', HAGalleryCard);
-console.log('Registering ha-gallery-editor custom element');
-customElements.define('ha-gallery-editor', HAGalleryEditor);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-    type: 'ha-gallery-card',
-    name: 'Gallery Card',
-    preview: true,
-    description: 'A card that displays a gallery of images and videos'
-});
-console.log('HA Gallery Card registration complete');
-            options: [
-                            { value: 'contain', label: 'Contain' },
-                            { value: 'cover', label: 'Cover' },
-                            { value: 'fill', label: 'Fill' }
-                        ],
-                        mode: 'dropdown'
-                    }
-                }
-            },
-            {
-                name: 'volume',
-                selector: { number: { min: 0, max: 100, mode: 'slider' } }
-            }
-        ];
-
-        this.innerHTML = `
-            <ha-form
-                .schema=${schema}
-                .data=${this._config}
-                @value-changed=${this._valueChanged}
-            ></ha-form>
-        `;
-    }
+// Registration
+if (!customElements.get('ha-gallery-card')) {
+    customElements.define('ha-gallery-card', HAGalleryCard);
+    console.info('HA Gallery Card version 1.0.1 registered');
 }
 
-console.log('Registering ha-gallery-card custom element');
-customElements.define('ha-gallery-card', HAGalleryCard);
-console.log('Registering ha-gallery-editor custom element');
-customElements.define('ha-gallery-editor', HAGalleryEditor);
+if (!customElements.get('ha-gallery-editor')) {
+    customElements.define('ha-gallery-editor', HAGalleryEditor);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-    type: 'ha-gallery-card',
-    name: 'Gallery Card',
-    preview: true,
-    description: 'A card that displays a gallery of images and videos'
-});
-console.log('HA Gallery Card registration complete');
+const cardExists = window.customCards.some(c => c.type === 'ha-gallery-card');
+if (!cardExists) {
+    window.customCards.push({
+        type: 'ha-gallery-card',
+        name: 'Gallery Card',
+        preview: true,
+        description: 'A card that displays a gallery of images and videos'
+    });
+}
