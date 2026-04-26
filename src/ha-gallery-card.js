@@ -174,12 +174,17 @@ class HAGalleryCard extends HTMLElement {
     async _loadMedia() {
         if (this._isLoading) return;
         this._isLoading = true;
-        console.log('[HA Gallery] STARTING LOAD. Path:', this._config.path);
+        
+        const rawPath = (this._config.path || '').trim();
+        console.log('[HA Gallery] STARTING LOAD. Path:', rawPath);
         
         try {
-            const mediaContentId = this._config.path.startsWith('media-source://') 
-                ? this._config.path 
-                : `media-source://media_source/${this._config.path.replace(/^\/+/, '')}`;
+            // Smart ID resolution:
+            // 1. If it already has a protocol (contains '://'), use it exactly as is.
+            // 2. Otherwise, prepend the standard Home Assistant media_source prefix.
+            const mediaContentId = rawPath.includes('://') 
+                ? rawPath 
+                : `media-source://media_source/${rawPath.replace(/^\/+/, '')}`;
 
             console.log('[HA Gallery] Requesting Browse with ID:', mediaContentId);
             
