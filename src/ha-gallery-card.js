@@ -269,24 +269,19 @@ class HAGalleryCard extends HTMLElement {
                 if (child.media_class === 'directory') {
                     return await this._processMediaSourceResponse(child);
                 } else if (child.media_class === 'image' || child.media_class === 'video') {
-                    try {
-                        const resolvedUrl = await this._getResolvedUrl(child);
-                        return [{
-                            url: resolvedUrl,
-                            type: child.media_class,
-                            contentId: child.media_content_id
-                        }];
-                    } catch (e) {
-                        return [];
-                    }
+                    // Store the contentId but DON'T resolve the URL yet
+                    return [{
+                        url: null, // Will be resolved just-in-time
+                        type: child.media_class,
+                        contentId: child.media_content_id
+                    }];
                 }
                 return [];
             }));
             items = childrenItems.flat();
         } else if (item.media_class === 'image' || item.media_class === 'video') {
-            const resolvedUrl = await this._getResolvedUrl(item);
             items.push({
-                url: resolvedUrl,
+                url: null,
                 type: item.media_class,
                 contentId: item.media_content_id
             });
@@ -363,10 +358,23 @@ class HAGalleryCard extends HTMLElement {
         });
     }
 
-    _showMedia() {
+    async _showMedia() {
         if (!this._mediaList.length) return;
 
         const media = this._mediaList[this._currentIndex];
+        
+        // Resolve URL just-in-time
+        let mediaUrl = media.url;
+        if (media.contentId) {
+            try {
+                mediaUrl = await this._getResolvedUrl(media);
+            } catch (error) {
+                console.error('Failed to resolve media:', media.contentId, error);
+                this._next(); // Skip to next if this one fails
+                return;
+            }
+        }
+
         const wrapper = this.shadowRoot.querySelector('.media-wrapper');
         const oldMedia = wrapper.querySelector('.media-item');
         
@@ -389,16 +397,9 @@ class HAGalleryCard extends HTMLElement {
 
         let element;
         if (media.type === 'video') {
-            element = this._createVideoElement(media.url);
+            element = this._createVideoElement(mediaUrl);
         } else {
-            const preloadedImage = this._preloadedImages.get(media.url);
-            if (preloadedImage && preloadedImage.complete) {
-                element = preloadedImage.cloneNode(true);
-                element.className = 'media-item';
-                element.style.objectFit = this._config.fit;
-            } else {
-                element = this._createImageElement(media.url);
-            }
+            element = this._createImageElement(mediaUrl);
         }
 
         wrapper.appendChild(element);
@@ -408,8 +409,6 @@ class HAGalleryCard extends HTMLElement {
         if (media.type !== 'video' && this._isPlaying && isVisible) {
             this._setTimer();
         }
-        
-        this._preloadNextImage();
     }
 
     _createVideoElement(url) {
@@ -472,26 +471,13 @@ class HAGalleryCard extends HTMLElement {
     }
 
     async _getResolvedUrl(item) {
-        // Check if we have a cached URL that hasn't expired
-        const cachedUrl = this._resolvedUrls.get(item.media_content_id);
-        const timestamp = this._urlCacheTimestamps.get(item.media_content_id);
-        const now = Date.now();
-
-        if (cachedUrl && timestamp && (now - timestamp) < this._maxCacheAge) {
-            return cachedUrl;
-        }
-
-        // Resolve new URL
+        // Always resolve fresh to avoid expired tokens
         const resolveResponse = await this._hass.callWS({
             type: 'media_source/resolve_media',
-            media_content_id: item.media_content_id
+            media_content_id: item.contentId
         });
 
-        const resolvedUrl = resolveResponse.url;
-        this._resolvedUrls.set(item.media_content_id, resolvedUrl);
-        this._urlCacheTimestamps.set(item.media_content_id, now);
-        
-        return resolvedUrl;
+        return resolveResponse.url;
     }
 
     _next() {
